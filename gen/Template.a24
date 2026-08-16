@@ -1,0 +1,104 @@
+/// Reading, substituting and writing the text of a page.
+///
+/// This is the whole of the generator's contact with the filesystem, and it is
+/// deliberately small: everything above it works on Strings.
+unit Template;
+
+/// The whole of a file as one String, lines rejoined with #10.
+///
+/// A Buffer rather than repeated concatenation -- a page is tens of kilobytes
+/// and '+' in a loop is the concatenation cliff this exists to answer.
+function ReadFile (Name : String) : String;
+var
+    F     := TextFile();
+    B     := Buffer();
+    First := True;
+
+begin
+    F.Assign(Name);
+    F.Reset();
+
+    while not F.Eof do
+    begin
+        if not First then
+            B.Append(Char(10));
+
+        B.Append(F.ReadLn());
+
+        First := False;
+    end
+
+    F.Close();
+
+    Exit B.Text;
+end
+
+/// Every occurrence of Key in Text, replaced by Value.
+///
+/// ⚠️ Hand-rolled, and quadratic. System has no Replace, and Pos has no start
+/// offset, so each match copies the remainder of the string to search it
+/// again. That is fine at this size and is not fine for the reference, which
+/// is 70 KB. Both are on WISHLIST-SITEGEN.md; when they land this function
+/// collapses into one call and this comment goes with it.
+function Substitute (Text : String, Key : String, Value : String) : String;
+var
+    B    := Buffer();
+    Rest := Text;
+    At   := 0;
+    Skip := 0;
+
+begin
+    Skip := Length(Key);
+    At   := Pos(Rest, Key);
+
+    while At >= 0 do
+    begin
+        B.Append(Copy(Rest, 0, At));
+        B.Append(Value);
+
+        Rest := Copy(Rest, At + Skip, Length(Rest) - At - Skip);
+        At   := Pos(Rest, Key);
+    end
+
+    B.Append(Rest);
+
+    Exit B.Text;
+end
+
+/// Writes Text to Name, replacing whatever was there.
+///
+/// ⚠️ The directory must already exist. The language cannot create one, so the
+/// caller mkdirs first -- which is exactly the workaround that stops working
+/// once the output tree is decided by the content rather than by the script.
+procedure WriteFile (Name : String, Text : String);
+var
+    F := TextFile();
+
+begin
+    F.Assign(Name);
+    F.Rewrite();
+
+    /// ⚠️ WriteLn, not Write. ReadFile joins lines with #10 between them and
+    /// never after the last, so writing with Write would drop the file's final
+    /// newline and the output would differ from its input by one byte. In a
+    /// project that requires its compiler to reproduce itself byte for byte,
+    /// the site generator can manage the same.
+    F.WriteLn(Text);
+
+    F.Close();
+end
+
+test 'Substitute Replaces Every Occurrence';
+begin
+    AssertEqual('a-b-c', Substitute('a.b.c', '.', '-'));
+end
+
+test 'Substitute Leaves Text Without The Key Alone';
+begin
+    AssertEqual('abc', Substitute('abc', 'z', '!'));
+end
+
+test 'Substitute Handles A Key At Either End';
+begin
+    AssertEqual('!bc!', Substitute('abca', 'a', '!'));
+end

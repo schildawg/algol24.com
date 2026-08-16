@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Algol-24">
+  <title>Algol-24</title>
+  <desc>Two stars of an eclipsing binary on crossing orbits, with a distant third companion.</desc>
+
+  <!-- ⚠️ Algol C is near-black, so it disappears against a dark ground.  The
+       media query is what makes one master serve both themes on the web; the
+       build script rewrites the same rule for the dark raster. -->
+  <style>
+    .third { fill: #00153D; }
+    @media (prefers-color-scheme: dark) { .third { fill: #C7D4E6; } }
+  </style>
+
+  <defs>
+    <!-- Algol B: the cooler orange subgiant (K0IV) -->
+    <radialGradient id="glowB" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#FEDD9B" stop-opacity=".85"/>
+      <stop offset="35%" stop-color="#FA981E" stop-opacity=".30"/>
+      <stop offset="100%" stop-color="#FA981E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="starB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#FDB03F"/>
+      <stop offset="45%" stop-color="#FA981E"/>
+      <stop offset="100%" stop-color="#E06309"/>
+    </linearGradient>
+
+    <!-- Algol A: the hot blue-white main sequence star (B8V) -->
+    <radialGradient id="glowA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#DCEBFB" stop-opacity=".85"/>
+      <stop offset="35%" stop-color="#59A2EC" stop-opacity=".28"/>
+      <stop offset="100%" stop-color="#59A2EC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="starA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#8FC2F6"/>
+      <stop offset="45%" stop-color="#59A2EC"/>
+      <stop offset="100%" stop-color="#1264C7"/>
+    </linearGradient>
+
+    <!-- orbit strokes fade rather than close, so the ring reads as motion -->
+    <linearGradient id="orbitB" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#E06309" stop-opacity="0"/>
+      <stop offset="18%"  stop-color="#E06309" stop-opacity="0"/>
+      <stop offset="42%"  stop-color="#F5901E" stop-opacity=".9"/>
+      <stop offset="72%"  stop-color="#FA981E" stop-opacity=".55"/>
+      <stop offset="92%"  stop-color="#FA981E" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="orbitA" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#1264C7" stop-opacity="0"/>
+      <stop offset="18%"  stop-color="#1264C7" stop-opacity="0"/>
+      <stop offset="44%"  stop-color="#2F7BD1" stop-opacity=".9"/>
+      <stop offset="74%"  stop-color="#59A2EC" stop-opacity=".5"/>
+      <stop offset="92%"  stop-color="#59A2EC" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- one four-pointed star, drawn once, placed three times -->
+    <path id="spark" d="M 0 -1 Q 0 0 .38 0 Q 0 0 0 1 Q 0 0 -.38 0 Q 0 0 0 -1 Z"/>
+  </defs>
+
+  <!-- orbits first: the stars sit on top of them -->
+  <g fill="none" stroke-linecap="round">
+    <ellipse cx="256" cy="248" rx="224" ry="112"
+             transform="rotate(-22 256 248)"
+             stroke="url(#orbitB)" stroke-width="5"/>
+    <ellipse cx="256" cy="266" rx="224" ry="112"
+             transform="rotate(22 256 266)"
+             stroke="url(#orbitA)" stroke-width="5"/>
+  </g>
+
+  <!-- Algol B, the primary mark -->
+  <circle cx="286" cy="196" r="118" fill="url(#glowB)"/>
+  <use href="#spark" transform="translate(286 196) scale(62 186)" fill="url(#starB)"/>
+
+  <!-- Algol A, eclipsing -->
+  <circle cx="198" cy="338" r="90" fill="url(#glowA)"/>
+  <use href="#spark" transform="translate(198 338) scale(46 138)" fill="url(#starA)"/>
+
+  <!-- Algol C, the distant third -->
+  <use href="#spark" transform="translate(362 302) scale(16 34)" class="third"/>
+</svg>

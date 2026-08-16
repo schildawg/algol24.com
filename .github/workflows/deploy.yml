@@ -1,0 +1,86 @@
+name: build and deploy
+
+# The site is built by the Algol-24 compiler, which is itself built from the
+# checked-in C in vendor/algol24/bootstrap. So the whole chain from `cc` to a
+# published page runs here, and nothing but a C compiler is assumed.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; never cancel one in flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Build algc
+        # Two stages: bootstrap/ builds with cc alone, and that compiler
+        # compiles compiler/*.a24 into ./algc.
+        run: |
+          cd vendor/algol24
+          ./build.sh
+          ./algc --help > /dev/null
+
+      - name: Test the generator
+        # The generator has its own test blocks. A site that fails its tests
+        # should not reach the artifact.
+        run: vendor/algol24/algc --test gen/Main.a24
+
+      - name: Generate the site
+        # ⚠️ mkdir first: Algol-24 cannot create a directory, so the output tree
+        # has to exist before the generator runs. This works only while the tree
+        # is known in advance -- see WISHLIST-SITEGEN.md.
+        run: |
+          mkdir -p site
+          vendor/algol24/algc gen/Main.a24
+
+      - name: Add static assets
+        run: |
+          cp -R static/. site/ 2>/dev/null || true
+          cp brand/dist/favicon.ico \
+             brand/dist/favicon-16.png \
+             brand/dist/favicon-32.png \
+             brand/dist/apple-touch-icon.png \
+             brand/dist/icon-192.png \
+             brand/dist/icon-512.png \
+             brand/dist/og-image.png \
+             site/
+
+      - name: Check nothing was left unrendered
+        # A '{{' surviving into the output means a placeholder the generator
+        # does not know about. Cheap to check, and invisible otherwise.
+        # -I skips binaries: a PNG will contain the bytes '{{' sooner or later,
+        # and og-image.png duly did.
+        run: |
+          if grep -rnI '{{' site/ ; then
+            echo "::error::unrendered placeholder in the generated site"
+            exit 1
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

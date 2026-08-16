@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Algol-24">
+  <title>Algol-24</title>
+  <desc>Compact mark: the binary pair on one orbit. For 32 to 128 pixels.</desc>
+
+  <defs>
+    <linearGradient id="cStarB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#FDB03F"/>
+      <stop offset="50%" stop-color="#FA981E"/>
+      <stop offset="100%" stop-color="#E06309"/>
+    </linearGradient>
+    <linearGradient id="cStarA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#8FC2F6"/>
+      <stop offset="50%" stop-color="#59A2EC"/>
+      <stop offset="100%" stop-color="#1264C7"/>
+    </linearGradient>
+    <linearGradient id="cOrbit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#F5901E" stop-opacity=".15"/>
+      <stop offset="30%"  stop-color="#F5901E"/>
+      <stop offset="70%"  stop-color="#2F7BD1"/>
+      <stop offset="100%" stop-color="#2F7BD1" stop-opacity=".15"/>
+    </linearGradient>
+    <path id="cSpark" d="M 0 -1 Q 0 0 .40 0 Q 0 0 0 1 Q 0 0 -.40 0 Q 0 0 0 -1 Z"/>
+  </defs>
+
+  <!-- a single orbit at this size: two would collapse into a blur -->
+  <ellipse cx="256" cy="256" rx="216" ry="118"
+           transform="rotate(-26 256 256)"
+           fill="none" stroke="url(#cOrbit)" stroke-width="20" stroke-linecap="round"/>
+
+  <use href="#cSpark" transform="translate(300 190) scale(74 168)" fill="url(#cStarB)"/>
+  <use href="#cSpark" transform="translate(196 330) scale(56 128)" fill="url(#cStarA)"/>
+</svg>

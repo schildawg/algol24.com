@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Algol-24">
+  <title>Algol-24</title>
+  <desc>Micro glyph: one star, thickened. For 16 pixels, where anything else silts up.</desc>
+
+  <defs>
+    <!-- .58 rather than .42: at 16px a slender point is a subpixel and disappears -->
+    <path id="mSpark" d="M 0 -1 Q 0 0 .58 0 Q 0 0 0 1 Q 0 0 -.58 0 Q 0 0 0 -1 Z"/>
+  </defs>
+
+  <use href="#mSpark" transform="translate(300 214) scale(126 248)" fill="#F5901E"/>
+  <use href="#mSpark" transform="translate(168 338) scale(84 166)" fill="#2F7BD1"/>
+</svg>

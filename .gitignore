@@ -1,0 +1,13 @@
+# the generated site
+site/
+
+# scratch from brand/build.sh
+brand/tmp/
+
+# ⚠️ brand/dist/ is NOT ignored. It is generated, and it is checked in anyway,
+# for the same reason the compiler checks in bootstrap/: the build that consumes
+# it must not need the tools that produced it. brand/build.sh needs qlmanage,
+# which exists only on macOS, and CI runs on Linux. Regenerate on a Mac and
+# commit the result.
+
+.DS_Store

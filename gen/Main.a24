@@ -1,0 +1,40 @@
+/// The generator for algol24.com.
+///
+/// Written in Algol-24 and compiled by algc, which is the point: the language
+/// builds its own front door the way the compiler already builds itself.
+///
+/// ⚠️ This is a stub. It renders one page from one template, which is enough
+/// to prove the pipeline end to end -- seed builds with cc, algc compiles this,
+/// this writes the site, CI publishes it. The Markdown parser and the .a24
+/// highlighter that turn ALGOL-24.md into the reference are blocked on the
+/// string library; see WISHLIST-SITEGEN.md in the compiler repository.
+uses Template;
+
+const Version := 'v0.1.0';
+const Status  := 'in preparation';
+const Source  := 'https://github.com/schildawg/algol24';
+
+/// Renders one template into one output file.
+procedure Render (From : String, Into : String);
+var
+    Page : String;
+
+begin
+    Page := ReadFile(From);
+
+    Page := Substitute(Page, '{{VERSION}}', Version);
+    Page := Substitute(Page, '{{STATUS}}',  Status);
+    Page := Substitute(Page, '{{SOURCE}}',  Source);
+
+    WriteFile(Into, Page);
+
+    WriteLn('  ' + Into);
+end
+
+begin
+    WriteLn('generating:');
+
+    Render('templates/index.html', 'site/index.html');
+
+    WriteLn('done.');
+end

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Algol-24">
+  <title>Algol-24</title>
+  <desc>Glyph: the binary pair alone, flat colour, no orbit. For 16 to 32 pixels.</desc>
+
+  <defs>
+    <path id="gSpark" d="M 0 -1 Q 0 0 .42 0 Q 0 0 0 1 Q 0 0 -.42 0 Q 0 0 0 -1 Z"/>
+  </defs>
+
+  <!-- flat fills: a gradient across 16 pixels is one indistinct colour anyway -->
+  <use href="#gSpark" transform="translate(300 186) scale(96 200)" fill="#F5901E"/>
+  <use href="#gSpark" transform="translate(190 330) scale(74 158)" fill="#2F7BD1"/>
+</svg>

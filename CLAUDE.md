@@ -74,6 +74,21 @@ Beyond the language reference, what bites when writing the generator:
 - A one-character literal is a `Char`, never a `String`.
 - Build strings with a `Buffer`, never `+` in a loop — a page is tens of
   kilobytes and concatenation is the cliff `Buffer` exists to answer.
+- ⚠️ **Never use a `Set` for membership. Use a `Map` with dummy values.** Under
+  `algc` a `Set` is not hash-backed — it is the same `ObjSeq` as a `List`, and
+  `Add` is a linear `Contains` before an append, so **building one is
+  quadratic**. Measured at N=32000: `Set` 1.80s, `List` + `Contains` 1.81s
+  (identical, because `Set.Add` *is* that), `Map` 0.15s. A `Map` is the only
+  genuinely hashed membership structure in the language.
+
+  ⚠️ This is not an interpreted-versus-compiled split. `algc`'s interpreter is
+  itself C running on the same runtime, so **both of `algc`'s modes are
+  quadratic**; the fast one is JPascal. Recorded as `D5` by the tester.
+- ⚠️ Collection iteration is **insertion order** for `Map` and `Set`, verified
+  on all four paths and stable across runs, so a page built by walking one is
+  deterministic. But insertion order means *most recent* insertion: `Remove`
+  followed by re-`Add` moves the element to the **end**. `ALGOL-24.md` §5 claims
+  order is unspecified and is wrong — §7 is correct.
 - `uses` is not transitive; every file declares its own dependencies.
 - The output directory must already exist. `build.sh` mkdirs first.
 

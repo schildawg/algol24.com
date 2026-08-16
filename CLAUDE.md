@@ -8,9 +8,9 @@ The website for the Algol-24 programming language, published at **algol24.com**.
 The generator is **written in Algol-24 and compiled by `algc`** — the language
 builds its own front door, as the compiler already builds itself.
 
-⚠️ **The domain is `algol24.com`.** This directory is named `www.algol.com` for
-historical reasons; `algol.com` is a Finnish industrial trading company and has
-nothing to do with this project.
+⚠️ **The domain is `algol24.com`, not `algol.com`.** `algol.com` belongs to Algol
+Group, a Finnish industrial trading company trading since 1894, and is not
+obtainable. The confusion is easy to make and has already been made once.
 
 ## Commands
 

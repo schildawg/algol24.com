@@ -11,11 +11,15 @@
 set -e
 cd "$(dirname "$0")"
 
-ALGC=vendor/algol24/algc
+# ⚠️ Both of these live under bootstrap/. The compiler repository moved them
+# there, and the commit this submodule used to pin no longer exists on the
+# remote -- CI failed on the checkout, not on the build. Keep this in step with
+# the same two paths in .github/workflows/deploy.yml.
+ALGC=vendor/algol24/bootstrap/algc
 
 if [ ! -x "$ALGC" ]; then
     echo "algc not built; building the compiler first"
-    ( cd vendor/algol24 && ./build.sh )
+    ( cd vendor/algol24 && ./bootstrap/build.sh )
 fi
 
 if [ "${1-}" = "--test" ]; then

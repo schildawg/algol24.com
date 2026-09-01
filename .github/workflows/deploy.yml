@@ -29,16 +29,16 @@ jobs:
 
       - name: Build algc
         # Two stages: bootstrap/ builds with cc alone, and that compiler
-        # compiles compiler/*.a24 into ./algc.
+        # compiles compiler/*.a24 into bootstrap/algc.
         run: |
           cd vendor/algol24
-          ./build.sh
-          ./algc --help > /dev/null
+          ./bootstrap/build.sh
+          ./bootstrap/algc --version
 
       - name: Test the generator
         # The generator has its own test blocks. A site that fails its tests
         # should not reach the artifact.
-        run: vendor/algol24/algc --test gen/Main.a24
+        run: vendor/algol24/bootstrap/algc --test gen/Main.a24
 
       - name: Generate the site
         # ⚠️ mkdir first: Algol-24 cannot create a directory, so the output tree
@@ -46,7 +46,7 @@ jobs:
         # is known in advance -- see WISHLIST-SITEGEN.md.
         run: |
           mkdir -p site
-          vendor/algol24/algc gen/Main.a24
+          vendor/algol24/bootstrap/algc gen/Main.a24
 
       - name: Add static assets
         run: |

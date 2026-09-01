@@ -51,12 +51,22 @@ builds `algc`, and its `ALGOL-24.md` and `README.md` are the source text for the
 Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
-⚠️ **The pin is on the old layout, and bumping it will break the build.** The
-compiler repository has since been restructured: `build.sh` and `compile.sh` are
-gone from the root, `algc` is built to `bootstrap/algc`, and `ALGOL-24.md` moved
-to `spec/`. Both `build.sh` and `deploy.yml` run `vendor/algol24/build.sh` and
-then `vendor/algol24/algc`, so a naive submodule bump fails on the first step.
-Updating the pin means updating those two invocations in the same commit.
+⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
+`v0.1.1`. The pin before it, `01b2778`, was rewritten out of the compiler
+repository's history, and from then on `actions/checkout` failed with
+`upload-pack: not our ref` before a single build step ran — a green local tree
+and a red CI, for a reason that has nothing to do with the site. A tag does not
+get garbage-collected; a branch commit can.
+
+⚠️ **The paths under the pin moved, and they move in two files at once.** The
+compiler repository was restructured: `build.sh` and `algc` now live under
+`bootstrap/`, and `ALGOL-24.md` moved to `spec/`. `build.sh` and `deploy.yml`
+each invoke `vendor/algol24/bootstrap/build.sh` and
+`vendor/algol24/bootstrap/algc`, so any future bump has to carry both.
+
+⚠️ A stale `algc` left at the submodule root from an older layout will hide all
+of this locally: `build.sh` finds it, skips the compiler build, and succeeds
+while CI's fresh clone fails. Clean the submodule before trusting a local pass.
 
 `prototype/index.html` is the hand-written design reference for the **body** —
 the artifact-shaped original, with no `<head>` because the artifact host

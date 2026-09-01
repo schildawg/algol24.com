@@ -16,10 +16,10 @@
 
 <style>
   /* ---- tokens -------------------------------------------------------- */
-  /* Every colour here is sampled from the logo. Light leads with Algol A,
+  /* Every color here is sampled from the logo. Light leads with Algol A,
      the blue; dark leads with Algol B, the orange. That is not a stylistic
      flip — orange is 2.36:1 on white and 7.57:1 on the ink, and blue is the
-     reverse. The contrast maths chose which star leads each theme. */
+     reverse. The contrast math chose which star leads each theme. */
   :root {
     --ground:      #FFFFFF;
     --panel:       #F4F7FB;
@@ -147,7 +147,7 @@
   nav.bar-nav a:hover { color: var(--accent); }
 
   /* The toggle is the eclipse: two stars, and the lit one is the theme's
-     lead colour. Clicking swaps which star you are looking at. */
+     lead color. Clicking swaps which star you are looking at. */
   button.eclipse {
     display: inline-flex;
     align-items: center;
@@ -299,6 +299,7 @@
     Algol-24
   </a>
   <nav class="bar-nav">
+    <a href="#install">Install</a>
     <a href="#tour">Tour</a>
     <a href="#reference">Reference</a>
     <a href="#internals">Internals</a>
@@ -351,13 +352,15 @@
     </svg>
 
     <h1>Algol-24</h1>
-    <p class="lede">A Pascal-flavoured language with optional types, compiled to C.
+    <p class="lede">A retro-modern language: classic Pascal syntax over unbounded
+       integers, full Unicode, gradual types, closures and a foreign function interface.
        The compiler is written in Algol-24 and compiles itself.</p>
 
-    <p class="status">v0.1.0 &middot; <b>in preparation</b> &middot; no release cut yet</p>
+    <p class="status">v0.1.1 &middot; <b>pre-1.0</b> &middot; on Homebrew</p>
 
     <div class="cta">
-      <a class="btn btn-primary" href="#tour">Take the tour</a>
+      <a class="btn btn-primary" href="#install">Install</a>
+      <a class="btn btn-ghost" href="#tour">Take the tour</a>
       <a class="btn btn-ghost" href="https://github.com/schildawg/algol24">Source on GitHub</a>
     </div>
 
@@ -365,6 +368,27 @@
     <span class="fn">WriteLn</span>(<span class="str">'Hello, world.'</span>);
 <span class="kw">end</span></pre>
   </section>
+
+  <div class="band tint">
+    <div class="wrap claim" id="install">
+      <p class="eyebrow">Install</p>
+      <h2>It is on Homebrew.</h2>
+      <div class="rule"></div>
+<pre>$ brew tap schildawg/algol24
+$ brew trust schildawg/algol24
+$ brew install algol24</pre>
+      <p>The middle line is required rather than advisory: Homebrew will not load a
+         formula from a third-party tap until you have said that you trust it.</p>
+<pre>$ algc --version
+<span class="out">algc 0.1.1</span></pre>
+      <p>The formula compiles foreign calls in and links against the <code>libffi</code>
+         that macOS ships, so the installed compiler depends on nothing but the operating
+         system. The specification and the library reference are installed beside it.</p>
+      <p>Bottles are built for Apple Silicon. Anywhere else — an Intel Mac, Linux —
+         Homebrew builds from source, which needs a C compiler and takes about two
+         seconds. There is no Windows build yet.</p>
+    </div>
+  </div>
 
   <div class="band">
     <div class="wrap claim" id="internals">
@@ -376,8 +400,9 @@
          C compiler and nothing else — no toolchain, no package manager, no bootstrap
          binary to trust.</p>
 <pre><span class="com">// two stages: the seed builds with cc, then compiles the real thing</span>
-$ ./build.sh
-$ ./compile.sh hello.a24 --run</pre>
+$ ./bootstrap/build.sh
+$ algc --compile --out=build hello.a24
+$ cc -std=c11 -O2 -o hello build/*.c</pre>
       <p>The build then diffs stage two's output against the checked-in seed. They must
          be identical. A difference means the seed is stale, which is exactly what you
          expect after editing the compiler — and <code>--reseed</code> is how you say so
@@ -408,31 +433,63 @@ $ ./compile.sh hello.a24 --run</pre>
   </div>
 
   <div class="band">
-    <div class="wrap claim" id="reference">
-      <p class="eyebrow">The guarantee</p>
-      <h2>The interpreter is the specification.</h2>
+    <div class="wrap claim" id="capabilities">
+      <p class="eyebrow">The capability</p>
+      <h2>Classic on the surface, not underneath.</h2>
       <div class="rule"></div>
-      <p>Nothing here is checked against expected output written by hand. The
-         tree-walking interpreter <em>defines</em> the language, so correctness is
-         differential: every program runs both ways, interpreted and compiled, and the
-         two must agree.</p>
-      <div class="facts">
-        <div class="fact"><b>~800</b><span>automated tests</span></div>
-        <div class="fact"><b>547</b><span>test blocks in Algol-24</span></div>
-        <div class="fact"><b>0</b><span>bytes of difference at the fixed point</span></div>
-      </div>
-      <p>The last of those is the interesting one. The compiler compiles itself, then
-         compiles itself again with the result, and the two emissions must be
-         byte-identical. That is a determinism check as much as a correctness one — no
-         hash-order iteration, no timestamps, no pointer values may reach the emitted
-         text. A compiler can be entirely correct and still fail it, and nothing else
-         would notice.</p>
-<pre>$ ./test.sh fixedpoint
-<span class="out">stage 2 and stage 3 emissions are byte-identical</span></pre>
+      <p>An <code>Integer</code> is unbounded: arithmetic past the machine width grows
+         rather than wrapping or raising, and demotes again the moment a result fits.
+         There is no build switch. Source, identifiers and text are Unicode throughout,
+         and text is measured in characters rather than bytes — so
+         <code>Length ('你好')</code> is 2.</p>
+<pre><span class="kw">class</span> Point;
+<span class="kw">var</span>
+    X : Integer;
+    Y : Integer;
+
+<span class="kw">begin</span>
+    <span class="kw">operator</span> + (Other : Point) : Point;
+    <span class="kw">begin</span>
+        <span class="kw">Exit</span> Point (X + Other.X, Y + Other.Y);
+    <span class="kw">end</span>
+<span class="kw">end</span></pre>
+      <p>Classes with operators a program may define, closures and nested subprograms,
+         exceptions, enumerations, five collections, modules including circular ones,
+         and a foreign function interface that reaches C — so a program can call SDL or
+         libm directly. The examples draw a pie chart and the word <em>hello</em> in
+         five scripts, with color emoji, into an SDL2 window.</p>
     </div>
   </div>
 
   <div class="band tint">
+    <div class="wrap claim" id="reference">
+      <p class="eyebrow">The guarantee</p>
+      <h2>The specification is the authority.</h2>
+      <div class="rule"></div>
+      <p>Where the implementation and the specification disagree, it is the
+         implementation that is wrong. The difference is recorded as a defect and
+         carries a program that reproduces it.</p>
+      <div class="facts">
+        <div class="fact"><b>281</b><span>rules, each claimed by a case</span></div>
+        <div class="fact"><b>220</b><span>unit tests in Algol-24</span></div>
+        <div class="fact"><b>236</b><span>cases, under both processors</span></div>
+      </div>
+      <p>Every case runs twice — interpreted and compiled — and both halves must be
+         green. A case the interpreter gets right and the compiled program gets wrong is
+         a gap, and a gap is a failure rather than a note. A defect's test is stranger
+         still: it records the wrong behavior and passes for as long as that behavior
+         lasts, turning red the day the defect is fixed.</p>
+      <p>Then there is the compiler itself. It compiles itself, compiles itself again
+         with the result, and the two emissions must be byte-identical. That is a
+         determinism check as much as a correctness one — no hash-order iteration, no
+         timestamps, no pointer values may reach the emitted text. A compiler can be
+         entirely correct and still fail it, and nothing else would notice.</p>
+<pre>$ ./fixedpoint.sh
+<span class="out">generation 3 is identical to generation 2</span></pre>
+    </div>
+  </div>
+
+  <div class="band">
     <div class="wrap claim">
       <p class="eyebrow">The name</p>
       <h2>Why Algol, and why 24.</h2>
@@ -453,7 +510,7 @@ $ ./compile.sh hello.a24 --run</pre>
     </div>
   </div>
 
-  <div class="band">
+  <div class="band tint">
     <div class="wrap claim">
       <p class="eyebrow">Provenance</p>
       <h2>It began as Lox.</h2>

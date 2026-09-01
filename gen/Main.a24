@@ -10,8 +10,13 @@
 /// string library; see WISHLIST-SITEGEN.md in the compiler repository.
 uses Template;
 
-const Version := 'v0.1.0';
-const Status  := 'in preparation';
+/// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
+/// both ways: 'v0.1.1' in the hero, and 'algc 0.1.1' where the install section
+/// quotes what --version actually prints. One constant, and the template adds
+/// the 'v' where it wants one.
+const Release := '0.1.1';
+const Status  := 'pre-1.0';
+const Tap     := 'schildawg/algol24';
 const Source  := 'https://github.com/schildawg/algol24';
 
 /// Renders one template into one output file.
@@ -22,8 +27,9 @@ var
 begin
     Page := ReadFile(From);
 
-    Page := Substitute(Page, '{{VERSION}}', Version);
+    Page := Substitute(Page, '{{RELEASE}}', Release);
     Page := Substitute(Page, '{{STATUS}}',  Status);
+    Page := Substitute(Page, '{{TAP}}',     Tap);
     Page := Substitute(Page, '{{SOURCE}}',  Source);
 
     WriteFile(Into, Page);

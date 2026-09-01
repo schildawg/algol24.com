@@ -39,7 +39,7 @@ source image agree.
 The site carries a light/dark toggle, and the contrast measurements decide the
 accent for each — they are not interchangeable.
 
-| Colour | On white | On ink |
+| Color | On white | On ink |
 |---|---|---|
 | `#F5901E` orange | **2.36** ✗ fails everything | **7.57** ✓ body text |
 | `#E06309` orange-deep | **3.52** — large text only | 5.07 ✓ |
@@ -149,8 +149,8 @@ anywhere it is used standalone — a README, a GitHub social preview.
   alpha**, so it carries a baked white background and cannot go on a dark ground
   or into an icon. `svg/` supersedes it. Keep the original as provenance.
 - **The vectors are a redraw, not a trace.** They were rebuilt from the concept
-  by eye and by sampled colour. Proportions are close but not identical, and the
+  by eye and by sampled color. Proportions are close but not identical, and the
   concept's star points are finer than the redraw's.
 - **The mark is stronger on dark than on light.** The glow reads as starlight
   against a night sky and as haze against white. Worth weighing when the site's
-  ground colour is chosen.
+  ground color is chosen.

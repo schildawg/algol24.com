@@ -23,7 +23,20 @@ vendor/algol24/algc gen/Main.a24            # generate directly
 vendor/algol24/algc --test gen/Template.a24 # one module's tests
 ```
 
-There is no per-test filter: the unit is a file.
+There is no per-test filter: the unit is a file. `--test` is transitive over
+`uses`, though, so `--test gen/Main.a24` runs `Template`'s tests too and is the
+whole suite — which is what CI runs.
+
+Checking the generator still reproduces the design is one command, and its
+output should be empty:
+
+```sh
+diff <(sed -n '/<header class="bar">/,/<\/script>/p' prototype/index.html) \
+     <(sed -n '/<header class="bar">/,/<\/script>/p' site/index.html)
+```
+
+Run against `templates/index.html` instead and the only differences should be
+the `{{...}}` placeholder lines. Both hold today.
 
 ## Architecture
 
@@ -38,6 +51,13 @@ builds `algc`, and its `ALGOL-24.md` and `README.md` are the source text for the
 Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
+⚠️ **The pin is on the old layout, and bumping it will break the build.** The
+compiler repository has since been restructured: `build.sh` and `compile.sh` are
+gone from the root, `algc` is built to `bootstrap/algc`, and `ALGOL-24.md` moved
+to `spec/`. Both `build.sh` and `deploy.yml` run `vendor/algol24/build.sh` and
+then `vendor/algol24/algc`, so a naive submodule bump fails on the first step.
+Updating the pin means updating those two invocations in the same commit.
+
 `prototype/index.html` is the hand-written design reference for the **body** —
 the artifact-shaped original, with no `<head>` because the artifact host
 supplies one. `templates/index.html` is the same markup wrapped in a real
@@ -46,6 +66,23 @@ its proper place before first paint.
 
 So the two are not byte-comparable, and only the body should be diffed when
 checking that the generator still reproduces the design.
+
+Three more things that are only visible by reading several files at once:
+
+- ⚠️ **`.github/workflows/deploy.yml` re-implements `build.sh`; it does not
+  call it.** The mkdir, the generate, the asset copy and the placeholder check
+  all exist twice. A change to the build has to be made in both, or CI publishes
+  something other than what you tested.
+- **Both builds fail on an unrendered `{{`.** A placeholder added to a template
+  with no matching `Substitute` in `gen/Main.a24` exits 70 locally and fails the
+  job in CI. Page constants live at the top of `Main.a24`; add the substitution
+  in the same commit as the template. The grep is `-I` so binaries are skipped —
+  `og-image.png` really did contain `{{`.
+- ⚠️ **`brand/dist/` is generated and checked in on purpose** — the same
+  argument as the compiler checking in `bootstrap/`. `brand/build.sh` needs
+  macOS's `qlmanage` and CI is Linux, so the build that consumes the assets must
+  not need the tools that made them. Never add it to `.gitignore`; regenerate on
+  a Mac and commit the PNGs.
 
 ## The state of it
 
@@ -61,6 +98,18 @@ are written up in `WISHLIST-SITEGEN.md` in the working compiler repository.
 ⚠️ **Two Algol-24 checkouts exist.** `workspace/JPascal` is the working code and
 is far ahead; `workspace-copilot/algol24` is the clean public repo. Run any
 count or check against `JPascal`.
+
+## Publishing
+
+Actions builds and deploys to Pages on every push to `main`; there is nothing to
+run by hand and no manual deploy step.
+
+**The custom domain is done and live.** `https://algol24.com/` serves the
+generated page, `www` 301s to the apex, and the certificate covers both. Pages
+is on `build_type: workflow`, so the domain is held in the repository's Pages
+settings and **there is no `CNAME` file in the repo** — `static/` is empty.
+README.md still describes the domain as a pending step and is out of date on
+that point.
 
 ## Writing Algol-24 here
 
@@ -91,10 +140,14 @@ Beyond the language reference, what bites when writing the generator:
   order is unspecified and is wrong — §7 is correct.
 - `uses` is not transitive; every file declares its own dependencies.
 - The output directory must already exist. `build.sh` mkdirs first.
+- `ReadFile` joins lines with `#10` between them and never after the last, so
+  `WriteFile` closes with `WriteLn`, not `Write`, to put the file's final
+  newline back. A project whose compiler reproduces itself byte for byte does
+  not lose a byte here either.
 
 ## Design
 
-`brand/BRAND.md` is authoritative for colour and the logo. Two points that are
+`brand/BRAND.md` is authoritative for color and the logo. Two points that are
 easy to get wrong:
 
 - ⚠️ **Orange is never body text on white** — `#F5901E` is 2.36:1 there. Light
@@ -108,7 +161,7 @@ easy to get wrong:
 Theme CSS is token-level: `:root` carries the complete light palette,
 `@media (prefers-color-scheme: dark)` guarded as `:root:not([data-theme="light"])`
 redefines the tokens, and `:root[data-theme="dark"]` redefines them again so the
-toggle wins in both directions. Never declare a colour only inside a media or
+toggle wins in both directions. Never declare a color only inside a media or
 `[data-theme]` block.
 
 ## Positioning
@@ -118,6 +171,20 @@ The name is for the lineage running through Pascal. **The 24 is a vintage, not a
 version** — there will be no Algol-26. The implementation descends from Bob
 Nystrom's Lox, which deserves visible credit.
 
-Do not call it a toy language. The honest register is early but serious: state
-the engineering plainly and without adjectives, and do not manufacture an
-adoption story it does not have yet.
+⚠️ **Never "Pascal-flavored".** The compiler repository's own `CLAUDE.md`
+forbids the phrase: it sells the language as a derivative of an old thing, when
+the old-looking surface is the deliberate part and the capability behind it is
+the point. Pascal may be named as the lineage of the *syntax*, never as the
+language's identity. The register is **retro-modern** — classic Pascal syntax
+over unbounded integers, full Unicode, gradual types, closures and a foreign
+function interface. The site said "Pascal-flavoured" in four places, including
+both meta descriptions, until v0.1.1.
+
+⚠️ **American spelling throughout**, matching the compiler repository, which
+settled it in the commit *"Retro-modern, not Pascal-flavored — and American
+spelling throughout."* This site was written in British spelling and was swept.
+
+Do not call it a toy language. **v0.1.x is the feature-complete alpha**: the
+language is done, and *alpha* means only that the library written in Algol-24 is
+still to come. State the engineering plainly and without adjectives, and do not
+manufacture an adoption story it does not have yet.

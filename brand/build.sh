@@ -25,7 +25,7 @@ flat () {   # flat SVG -> transparent PNG at a size
     magick -background none "svg/$1.svg" -resize "${2}x${2}" "$OUT/$3"
 }
 
-onbg () {   # gradient SVG -> opaque PNG at a size, over a background colour
+onbg () {   # gradient SVG -> opaque PNG at a size, over a background color
     # ⚠️ Algol C is near-black.  Against the dark ground it has to be lifted, or
     # the third star of a triple system is simply missing from the mark.
     if [ "$3" = "$INK" ]; then

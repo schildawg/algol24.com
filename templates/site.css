@@ -51,13 +51,9 @@
       --code-num:   #D2A7F0;
       --log-error:  #FF7B72;
       --log-info:   #8FC2F6;
-      --log-error:  #FF7B72;
-    --log-info:   #8FC2F6;
-    --case-bg:    #3B2A0E;
-      --case-text:  #FFC46B;
       --case-bg:    #3B2A0E;
-    --case-text:  #FFC46B;
-    --shadow:     0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
+      --case-text:  #FFC46B;
+      --shadow:     0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
     }
   }
 
@@ -78,6 +74,10 @@
     --code-com:   #7A8CA8;
     --code-fn:    #8FC2F6;
     --code-num:   #D2A7F0;
+    --log-error:  #FF7B72;
+    --log-info:   #8FC2F6;
+    --case-bg:    #3B2A0E;
+    --case-text:  #FFC46B;
     --shadow:     0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
   }
 

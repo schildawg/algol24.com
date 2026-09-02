@@ -42,6 +42,39 @@ if [ "${1-}" = "--test" ]; then
     exec "$ALGC" --test gen/Main.a24
 fi
 
+
+# ⚠️ Every themed token must be declared in all THREE blocks, and nothing but a
+# check enforces it. The rule has been written in CLAUDE.md from the start and
+# was still broken by an edit that put four colours in the media block and none
+# in [data-theme="dark"]: system dark looked right and the toggle served the
+# light palette, which is the one combination nobody tests by accident.
+#
+# A token needs a dark value when its light value is a colour, which is what
+# spares --measure and the two font stacks without an allowlist to maintain.
+missing=$(awk '
+    /^  :root \{/                    { block = "root";  next }
+    /prefers-color-scheme: dark/      { block = "media"; next }
+    /^  :root\[data-theme="dark"\]/   { block = "theme"; next }
+    /^  \/\* ---- base/               { block = "";      next }
+    block != "" && match($0, /--[a-z0-9-]+:/) {
+        name = substr($0, RSTART, RLENGTH - 1)
+        val  = substr($0, RSTART + RLENGTH)
+        if (block == "root") { if (val ~ /#|rgba/) need[name] = 1 }
+        else                 { have[block "|" name] = 1 }
+    }
+    END {
+        for (n in need) {
+            if (!(("media|" n) in have)) print "  " n " is not in the media block"
+            if (!(("theme|" n) in have)) print "  " n " is not in [data-theme=dark]"
+        }
+    }' templates/site.css)
+
+if [ -n "$missing" ]; then
+    echo "FAIL  a themed token is declared in only some of the three blocks:"
+    echo "$missing"
+    exit 70
+fi
+
 # The site root, and only the root. v0.1.2 gave the language MkDir, so the
 # generator makes site/reference itself -- the tree below here is decided by
 # the content now, which is exactly what this mkdir used to stand in for.

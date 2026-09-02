@@ -1,8 +1,12 @@
 /// Markdown to HTML, as much of it as the specification actually uses.
 ///
-/// This pass understands headings, paragraphs, fenced code, indented code and
-/// inline code spans. Emphasis, links and tables are not here yet, and appear
-/// in the output as the characters that spell them.
+/// This pass understands headings, paragraphs, fenced code, indented code,
+/// inline code spans and emphasis, and it links a cited case to the place the
+/// document writes that case out in full. Tables, block quotes and rules are
+/// not here yet and appear as the characters that spell them.
+///
+/// The specification has no links in it at all -- no inline, no reference, no
+/// autolinks -- so there is nothing here to read them with.
 ///
 /// Everything works a line at a time, deliberately. A character index into a
 /// string holding any non-ASCII character walks from the start to find its
@@ -64,18 +68,151 @@ begin
     Exit '<pre><code class="language-' + Lang + '">';
 end
 
-/// One line of inline Markdown as HTML.
+/// The identifier for the place a case is written out.
 ///
-/// Escaping happens once, first, over the whole line, so the text inside a code
-/// span is escaped too. Backticks toggle, and a line whose backticks do not
-/// pair leaves an element open, so the last one is closed here rather than
-/// left for the browser to guess at.
-function Inline (Text : String) : String;
+/// A path is not a usable fragment as it stands, so the two characters that
+/// separate its parts become the one that does not need escaping.
+function Anchor (Path : String) : String;
+begin
+    Exit Replace(Replace(Path, '/', '-'), '.', '-');
+end
+
+/// Every case the document includes, mapped from its path to its anchor.
+///
+/// A '#####' heading naming conformance/… or refusals/… is where a case is
+/// written out in full, and a rule that only cites one by name can then point
+/// at it. This is the whole reason the reference is a single page: the target
+/// is always in the same document, so nothing has to be resolved across files.
+function Targets (Lines : List) : Map;
+var
+    Found := Map();
+
+begin
+    for var Raw in Lines do
+        if HeadingLevel(Raw) = 5 then
+        begin
+            var Path := Trim(Copy(Raw, 5, Length(Raw) - 5));
+
+            if StartsWith(Path, 'conformance/') or StartsWith(Path, 'refusals/') then
+                Found.Put(Path, Anchor(Path));
+        end
+
+    Exit Found;
+end
+
+/// The path a citation names, or '' when the line does not carry one.
+///
+/// A citation is an indented line whose kind fills a thirteen-column field and
+/// whose name begins at column seventeen; the specification aligns all 225 of
+/// them exactly so. Only 'conformance' and 'refusal' name something this
+/// document contains: 'unit' names a test in the compiler's own sources and
+/// 'defect' one in DEFECTS.md, and neither can be pointed at from here.
+///
+/// The citing kind is singular and the directory is plural, so 'refusal' has to
+/// be spelled back to 'refusals/' to match the heading it belongs to.
+function CitedPath (Body : String) : String;
+var
+    Kind := '';
+    Name := '';
+
+begin
+    if Length(Body) <= 13 then Exit '';
+
+    Kind := Trim(Copy(Body, 0, 13));
+    Name := Trim(Copy(Body, 13, Length(Body) - 13));
+
+    if Name = '' then Exit '';
+    if Pos(Name, ' ', 0) >= 0 then Exit '';
+
+    if Kind = 'conformance' then Exit 'conformance/' + Name;
+    if Kind = 'refusal' then Exit 'refusals/' + Name;
+
+    Exit '';
+end
+
+/// Every pair of Mark in Text wrapped in Open and Close.
+///
+/// A mark with no partner after it is left as the character it is, rather than
+/// opening an element that never closes. That is what keeps a lone asterisk in
+/// running prose from swallowing the rest of the line.
+function Wrap (Text : String, Mark : String, Open : String, Close : String) : String;
 var
     B     := Buffer();
+    Start := 0;
+    Step  := 0;
+    A     := 0;
+    Z     := 0;
+
+begin
+    Step := Length(Mark);
+    A    := Pos(Text, Mark, 0);
+
+    while A >= 0 do
+    begin
+        Z := Pos(Text, Mark, A + Step);
+
+        if Z < 0 then A := -1;
+        else
+        begin
+            B.Append(Copy(Text, Start, A - Start));
+            B.Append(Open);
+            B.Append(Copy(Text, A + Step, Z - A - Step));
+            B.Append(Close);
+
+            Start := Z + Step;
+            A     := Pos(Text, Mark, Start);
+        end
+    end
+
+    B.Append(Copy(Text, Start, Length(Text) - Start));
+
+    Exit B.Text;
+end
+
+/// Bold and italic, in that order.
+///
+/// The double mark has to be taken first. Run singly first and the opening two
+/// asterisks of a bold run become an empty italic, and the text after it never
+/// recovers.
+///
+/// An underscore is not emphasis here, deliberately. The grammar annex is written
+/// in snake_case, so 'hex_lit = decimal_digit' would italicise from its first
+/// underscore to its last and take the production with it.
+function Emphasis (Text : String) : String;
+begin
+    Exit Wrap(Wrap(Text, '**', '<strong>', '</strong>'), '*', '<em>', '</em>');
+end
+
+/// One line of inline Markdown as HTML.
+///
+/// Three phases, and the middle one is why. Emphasis has to see the line whole,
+/// because a bold run may contain a code span -- the specification writes
+/// things like "so **a `//` comment in a file** …" throughout. Applying
+/// emphasis to each stretch between backticks separately cuts such a run in
+/// half, and its two markers then pair with whatever else is nearby: one line
+/// came out as '</strong>dispatch<em></em>'. So every span is lifted out first
+/// and a marker left in its place, emphasis runs over the whole line, and the
+/// spans go back afterwards.
+///
+/// The marker is #1, and it is #1 rather than #0 for a reason worth keeping.
+/// A String holds a zero byte happily and Length counts it, but Pos does not
+/// see one: searching for Char(0) answers 0 against any text at all, the same
+/// answer it gives for an empty part. The marker would have been found in every
+/// line, including the ones with no code span in them. #1 searches correctly
+/// and no text file this reads will contain either.
+///
+/// Escaping happens once, first, over the whole line, so the text inside a span
+/// is escaped too. A line whose backticks do not pair has its last span closed
+/// here rather than left for the browser to guess at.
+function Inline (Text : String) : String;
+var
     Safe  := '';
+    Spans := List();
+    Held  := Buffer();
+    Out   := Buffer();
     Start := 0;
     At    := 0;
+    I     := 0;
     Open  := False;
 
 begin
@@ -84,21 +221,47 @@ begin
 
     while At >= 0 do
     begin
-        B.Append(Copy(Safe, Start, At - Start));
+        var Seg := Copy(Safe, Start, At - Start);
 
-        if Open then B.Append('</code>');
-        else B.Append('<code>');
+        if Open then
+        begin
+            Spans.Add(Seg);
+            Held.Append(Char(1));
+        end
+        else Held.Append(Seg);
 
         Open  := not Open;
         Start := At + 1;
         At    := Pos(Safe, '`', Start);
     end
 
-    B.Append(Copy(Safe, Start, Length(Safe) - Start));
+    var Tail := Copy(Safe, Start, Length(Safe) - Start);
 
-    if Open then B.Append('</code>');
+    if Open then
+    begin
+        Spans.Add(Tail);
+        Held.Append(Char(1));
+    end
+    else Held.Append(Tail);
 
-    Exit B.Text;
+    var Marked := Emphasis(Held.Text);
+
+    At := Pos(Marked, Char(1), 0);
+    Start := 0;
+
+    while At >= 0 do
+    begin
+        Out.Append(Copy(Marked, Start, At - Start));
+        Out.Append('<code>' + Spans[I] + '</code>');
+
+        I     := I + 1;
+        Start := At + 1;
+        At    := Pos(Marked, Char(1), Start);
+    end
+
+    Out.Append(Copy(Marked, Start, Length(Marked) - Start));
+
+    Exit Out.Text;
 end
 
 /// The lines of a Markdown document rendered as HTML.
@@ -116,8 +279,11 @@ var
     InFence  := False;
     InCode   := False;
     Level    := 0;
+    Cases    := Map();
 
 begin
+    Cases := Targets(Lines);
+
     for var Raw in Lines do
     begin
         if InFence then
@@ -162,9 +328,15 @@ begin
                     InFence := True;
                 end
                 else if Level > 0 then
-                    Out.Append('<h' + Str(Level) + '>'
-                             + Inline(Trim(Copy(Raw, Level, Length(Raw) - Level)))
+                begin
+                    var Head := Trim(Copy(Raw, Level, Length(Raw) - Level));
+                    var Id   := '';
+
+                    if Cases.Contains(Head) then Id := ' id="' + Cases.Get(Head) + '"';
+
+                    Out.Append('<h' + Str(Level) + Id + '>' + Inline(Head)
                              + '</h' + Str(Level) + '>' + #10);
+                end
                 else if Indented then
                 begin
                     if not InCode then
@@ -173,7 +345,19 @@ begin
                         InCode := True;
                     end
 
-                    Out.Append(Escape(Copy(Raw, 4, Length(Raw) - 4)) + #10);
+                    var Body := Copy(Raw, 4, Length(Raw) - 4);
+                    var Path := CitedPath(Body);
+
+                    // ⚠️ The kind field is emitted whole so the column keeps its
+                    // alignment; only the name becomes the link.
+                    if (Path <> '') and Cases.Contains(Path) then
+                    begin
+                        Out.Append(Escape(Copy(Body, 0, 13)));
+                        Out.Append('<a href="#' + Cases.Get(Path) + '">');
+                        Out.Append(Escape(Trim(Copy(Body, 13, Length(Body) - 13))));
+                        Out.Append('</a>' + #10);
+                    end
+                    else Out.Append(Escape(Body) + #10);
                 end
                 else if Blank and InCode then Out.Append(#10);
             end
@@ -329,4 +513,80 @@ end
 test 'Render Answers Nothing For Nothing';
 begin
     AssertEqual('', Render(List()));
+end
+
+test 'Emphasis Reads Bold And Italic';
+begin
+    AssertEqual('<p><strong>bold</strong></p>' + #10, One('**bold**'));
+    AssertEqual('<p><em>soft</em></p>' + #10, One('*soft*'));
+end
+
+/// Taken the other way round, the two opening asterisks become an empty italic.
+test 'Emphasis Takes The Double Mark Before The Single';
+begin
+    AssertEqual('<p><strong>[RT-005]</strong> holds</p>' + #10, One('**[RT-005]** holds'));
+end
+
+/// A glob or a footnote marker in prose must survive.
+test 'Emphasis Leaves An Unpaired Mark As Text';
+begin
+    AssertEqual('<p>a * b</p>' + #10, One('a * b'));
+end
+
+/// The grammar annex is snake_case throughout.
+test 'Emphasis Never Reads An Underscore';
+begin
+    AssertEqual('<p>hex_lit = decimal_digit</p>' + #10, One('hex_lit = decimal_digit'));
+end
+
+test 'Emphasis Does Not Reach Inside A Code Span';
+begin
+    AssertEqual('<p><code>a ** b</code></p>' + #10, One('`a ** b`'));
+end
+
+test 'Anchor Turns A Case Path Into A Fragment';
+begin
+    AssertEqual('conformance-0089-text-builtins-a24', Anchor('conformance/0089-text-builtins.a24'));
+end
+
+test 'CitedPath Reads The Kinds This Document Can Point At';
+begin
+    AssertEqual('conformance/0089.a24', CitedPath('conformance  0089.a24'));
+    AssertEqual('refusals/0174.a24',    CitedPath('refusal      0174.a24'));
+end
+
+/// A unit test lives in the compiler's sources and a defect in DEFECTS.md.
+test 'CitedPath Declines The Kinds That Live Elsewhere';
+begin
+    AssertEqual('', CitedPath('unit         Scan A Whole Program'));
+    AssertEqual('', CitedPath('defect       DEF-34'));
+    AssertEqual('', CitedPath('function Foo () : Integer;'));
+end
+
+test 'Render Gives An Included Case Heading An Anchor';
+begin
+    AssertEqual('<h5 id="conformance-0051-a24">conformance/0051.a24</h5>' + #10,
+                One('##### conformance/0051.a24'));
+end
+
+test 'Render Links A Citation To The Case It Names';
+begin
+    var L := List();
+    L.Add('##### conformance/0089.a24');
+    L.Add('');
+    L.Add('    conformance  0089.a24');
+
+    AssertEqual('<h5 id="conformance-0089-a24">conformance/0089.a24</h5>' + #10
+              + '<pre><code>conformance  <a href="#conformance-0089-a24">0089.a24</a>' + #10
+              + '</code></pre>' + #10,
+                Render(L));
+end
+
+/// 'TBD' is a placeholder, and there is nothing to point at.
+test 'Render Leaves A Citation Alone When The Case Is Not Included';
+begin
+    var L := List();
+    L.Add('    conformance  TBD');
+
+    AssertEqual('<pre><code>conformance  TBD' + #10 + '</code></pre>' + #10, Render(L));
 end

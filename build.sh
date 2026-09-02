@@ -37,19 +37,14 @@ if [ "$have" != "$want" ]; then
 fi
 
 if [ "${1-}" = "--test" ]; then
-    # ⚠️ Two roots, and the second is temporary. --test is transitive over
-    # 'uses', so naming Main runs everything Main can reach -- and it cannot
-    # reach Markdown, because the reference page that unit exists for has not
-    # been wired up yet and nothing imports it. Named on its own it would have
-    # gone untested here and in CI, which is how sixteen passing tests turn
-    # into no tests at all. Delete the second line the day Main uses Markdown.
-    "$ALGC" --test gen/Main.a24 || exit 70
-    exec "$ALGC" --test gen/Markdown.a24
+    # One root again. --test is transitive over 'uses', and Main now imports
+    # Markdown for the reference page, so naming Main reaches every unit.
+    exec "$ALGC" --test gen/Main.a24
 fi
 
-# ⚠️ The language cannot create a directory, so the output tree has to exist
-# before the generator runs. This is the workaround that stops working the day
-# the tree is decided by the content -- see WISHLIST-SITEGEN.md.
+# The site root, and only the root. v0.1.2 gave the language MkDir, so the
+# generator makes site/reference itself -- the tree below here is decided by
+# the content now, which is exactly what this mkdir used to stand in for.
 mkdir -p site
 
 # The generator is COMPILED rather than interpreted, and then run.

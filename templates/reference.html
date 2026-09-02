@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The Algol-24 language reference: {{RULES}} numbered rules, each claimed by a case that runs under both processors.">
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Algol-24 — Reference">
+<meta property="og:description" content="The Algol-24 language reference: {{RULES}} numbered rules, each claimed by a case that runs under both processors.">
+<meta property="og:image" content="https://algol24.com/og-image.png">
+<meta property="og:url" content="https://algol24.com/reference/">
+<meta name="twitter:card" content="summary_large_image">
+
+<!-- Paints the browser chrome to match, in whichever theme is active. -->
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#00153D">
+
+{{BOOT}}
+
+<title>Algol-24 — Reference</title>
+
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+{{MASTHEAD}}
+
+<div class="doc">
+  <details class="toc-wrap" open>
+    <summary>Contents</summary>
+{{TOC}}
+  </details>
+
+  <main class="ref">
+{{BODY}}
+  </main>
+</div>
+
+{{THEME}}
+
+<script>
+  /* ⚠️ The contents are OPEN in the markup and closed by this script on a
+     narrow screen, rather than closed and opened by a media query. A closed
+     <details> hides its children in a way CSS cannot override -- 'display:
+     block' on the list does not bring it back -- so the sidebar could never be
+     reached that way round. Inverted, the no-script case shows the whole list
+     instead of none of it, which is the better of the two failures. */
+  (function () {
+    var box = document.querySelector('.toc-wrap');
+    var wide = matchMedia('(min-width: 1180px)');
+
+    function fit() { box.open = wide.matches; }
+
+    wide.addEventListener('change', fit);
+    fit();
+  })();
+</script>
+</body>
+</html>

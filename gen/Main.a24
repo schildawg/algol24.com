@@ -11,6 +11,8 @@
 /// case folding and the directory built-ins, and gen/Strings.a24 has the rest.
 uses Template;
 uses Strings;
+uses Markdown;
+uses Highlight;
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
 /// both ways: 'v0.1.2' in the hero, and 'algc 0.1.2' where the install section
@@ -19,12 +21,35 @@ uses Strings;
 const Release := '0.1.2';
 const Status  := 'pre-1.0';
 const Tap     := 'schildawg/algol24';
-const Source  := 'https://github.com/schildawg/algol24';
+/// ⚠️ Repo, not Source. 'uses' brings a unit's names in unqualified, and
+/// Highlight already has a Source -- the function that highlights a line. The
+/// interpreter merely warned about the clash; the C back end emitted a
+/// reference to the function where the constant belonged and would not compile.
+/// A name here has to be one no imported unit uses.
+const Repo := 'https://github.com/schildawg/algol24';
 
 /// ⚠️ Read at build time, and pinned. This is the submodule's copy, so the
 /// figure counted from it describes the same compiler the rest of the page
 /// describes.
 const Spec := 'vendor/algol24/spec/ALGOL-24.md';
+
+/// ⚠️ The parts every page shares, kept in one copy each.
+///
+/// The reference needs the same palette, the same masthead and the same theme
+/// switch as the home page, and a second copy of any of them is a second thing
+/// to keep in step. They are substituted in rather than repeated.
+const Boot  := 'templates/boot.html';
+const Style := 'templates/site.css';
+const Mast  := 'templates/masthead.html';
+const Theme := 'templates/theme.html';
+
+/// The reference is built from the pinned specification and the pinned
+/// scanner: the rules it states and the keywords it colours both come from the
+/// compiler this page describes.
+const Reference := 'templates/reference.html';
+const RefInto   := 'site/reference/index.html';
+const RefDir    := 'site/reference';
+const Scanner   := 'vendor/algol24/compiler/Scanner.a24';
 
 /// The number of rules in the specification, counted rather than written down.
 ///
@@ -51,19 +76,71 @@ end
 /// Counted once, though it is cheap now that the walk reads lines directly.
 var Rules := '';
 
+/// Makes a directory, and does not mind one that is already there.
+///
+/// ⚠️ MkDir raises when the directory exists -- 'MkDir failed: cannot create'
+/// -- and there is no built-in that asks whether one does. The build runs more
+/// than once against the same tree, so the second run would fail on what the
+/// first run made, and catching is the only way to say "either way".
+procedure EnsureDir (Name : String);
+begin
+    try
+        MkDir(Name);
+    except on X : String do
+        // Already there, which is the ordinary case from the second build on.
+        // A handler needs a statement, and this is the smallest honest one.
+        X := X;
+    end
+end
+
+/// Fills the parts every page shares.
+function Shared (Page : String) : String;
+begin
+    Page := Replace(Page, '{{BOOT}}',     ReadFile(Boot));
+    Page := Replace(Page, '{{STYLE}}',    ReadFile(Style));
+    Page := Replace(Page, '{{MASTHEAD}}', ReadFile(Mast));
+    Page := Replace(Page, '{{THEME}}',    ReadFile(Theme));
+    Page := Replace(Page, '{{SOURCE}}',   Repo);
+    Page := Replace(Page, '{{RULES}}',    Rules);
+
+    Exit Page;
+end
+
+/// Renders the specification into the reference page.
+procedure RenderReference ();
+var
+    Lines := List();
+    Words := Map();
+    Page  := '';
+
+begin
+    EnsureDir(RefDir);
+
+    Lines := ReadLines(Spec);
+    Words := Keywords(ReadLines(Scanner));
+
+    Page := Shared(ReadFile(Reference));
+    Page := Replace(Page, '{{TOC}}',  Contents(Lines));
+    Page := Replace(Page, '{{BODY}}', RenderWith(Lines, Words));
+
+    WriteFile(RefInto, Page);
+
+    WriteLn('  ' + RefInto);
+end
+
 /// Renders one template into one output file.
-procedure Render (From : String, Into : String);
+procedure RenderPage (From : String, Into : String);
 var
     Page : String;
 
 begin
     Page := ReadFile(From);
 
+    Page := Shared(Page);
+
     Page := Replace(Page, '{{RELEASE}}', Release);
     Page := Replace(Page, '{{STATUS}}',  Status);
     Page := Replace(Page, '{{TAP}}',     Tap);
-    Page := Replace(Page, '{{SOURCE}}',  Source);
-    Page := Replace(Page, '{{RULES}}',   Rules);
 
     WriteFile(Into, Page);
 
@@ -75,7 +152,8 @@ begin
 
     WriteLn('generating:');
 
-    Render('templates/index.html', 'site/index.html');
+    RenderPage('templates/index.html', 'site/index.html');
+    RenderReference();
 
     WriteLn('done.');
 end

@@ -1,0 +1,13 @@
+<script>
+  /* Runs before the page paints, so a stored choice never flashes the wrong
+     theme. Absent a stored choice we stamp nothing and prefers-color-scheme
+     decides — which is the point: neither theme is "the default". */
+  (function () {
+    try {
+      var t = localStorage.getItem('algol-theme');
+      if (t === 'light' || t === 'dark') {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    } catch (e) {}
+  })();
+</script>

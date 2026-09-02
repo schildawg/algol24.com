@@ -132,6 +132,47 @@ begin
     Exit '';
 end
 
+/// A heading's identifier, made from its own text.
+///
+/// Letters and digits are kept and folded down; everything else becomes a
+/// separator, and runs of separators collapse. '## 4. Lexical elements' answers
+/// '4-lexical-elements'.
+///
+/// The numbers are what keep these apart. Two chapters could otherwise share a
+/// slug, and the specification numbers all of its chapters and sections.
+function Slug (Text : String) : String;
+var
+    B    := Buffer();
+    Gap  := False;
+    Seen := False;
+
+begin
+    for var I : Integer := 0; I < Length(Text); I := I + 1 do
+    begin
+        var O := Ord(Text[I]);
+        var Keep := ((O >= 97) and (O <= 122)) or ((O >= 48) and (O <= 57));
+
+        if (O >= 65) and (O <= 90) then
+        begin
+            O    := O + 32;
+            Keep := True;
+        end
+
+        if Keep then
+        begin
+            if Gap and Seen then B.Append('-');
+
+            B.Append(Char(O));
+
+            Gap  := False;
+            Seen := True;
+        end
+        else Gap := True;
+    end
+
+    Exit B.Text;
+end
+
 /// The rule a line defines, or '' when it defines none.
 ///
 /// A rule opens its paragraph as `**[XXX-000]**`. One line of prose opens '**['
@@ -710,6 +751,7 @@ begin
                     // CSS by adjacency rather than by wrapping anything here.
                     if Cases.Contains(Head) then
                         Id := ' class="case" id="' + Cases.Get(Head) + '"';
+                    else if Level <= 3 then Id := ' id="' + Slug(Head) + '"';
 
                     Out.Append('<h' + Str(Level) + Id + '>' + Inline(Head, Cases)
                              + '</h' + Str(Level) + '>' + #10);
@@ -748,6 +790,62 @@ begin
     if InFence then Out.Append('</code></pre>' + #10);
 
     Exit Out.Text;
+end
+
+/// The chapters and their sections, as a nested list of links.
+///
+/// h2 is a chapter and h3 a section. h1 is the document's title and h5 names a
+/// case, and 239 case names do not belong in a table of contents.
+///
+/// ⚠️ The entries are rendered with an EMPTY reference map. A heading holding a
+/// rule identifier would otherwise put a link inside a link, which is not
+/// something HTML has an opinion about so much as a thing browsers each guess
+/// at differently.
+function Contents (Lines : List) : String;
+var
+    B       := Buffer();
+    Chapter := False;
+    Sub     := False;
+
+begin
+    B.Append('<nav class="toc" aria-label="Contents">' + #10 + '<ol>' + #10);
+
+    for var Raw in Lines do
+    begin
+        var L := HeadingLevel(Raw);
+
+        if (L = 2) or (L = 3) then
+        begin
+            var Head := Trim(Copy(Raw, L, Length(Raw) - L));
+            var Link := '<a href="#' + Slug(Head) + '">' + Inline(Head, Map()) + '</a>';
+
+            if L = 2 then
+            begin
+                if Sub then B.Append('</ol>' + #10);
+                if Chapter then B.Append('</li>' + #10);
+
+                B.Append('<li>' + Link);
+
+                Chapter := True;
+                Sub     := False;
+            end
+            else
+            begin
+                if not Sub then B.Append(#10 + '<ol>' + #10);
+
+                B.Append('<li>' + Link + '</li>' + #10);
+
+                Sub := True;
+            end
+        end
+    end
+
+    if Sub then B.Append('</ol>' + #10);
+    if Chapter then B.Append('</li>' + #10);
+
+    B.Append('</ol>' + #10 + '</nav>' + #10);
+
+    Exit B.Text;
 end
 
 /// The lines of a Markdown document rendered as HTML, with source highlighted
@@ -790,7 +888,7 @@ end
 
 test 'Render Makes A Heading At Its Level';
 begin
-    AssertEqual('<h2>Notation</h2>' + #10, One('## Notation'));
+    AssertEqual('<h2 id="notation">Notation</h2>' + #10, One('## Notation'));
 end
 
 test 'Render Joins The Lines Of A Paragraph';
@@ -921,7 +1019,7 @@ begin
     L.Add('text');
     L.Add('## After');
 
-    AssertEqual('<p>text</p>' + #10 + '<h2>After</h2>' + #10, Render(L));
+    AssertEqual('<p>text</p>' + #10 + '<h2 id="after">After</h2>' + #10, Render(L));
 end
 
 test 'Render Answers Nothing For Nothing';
@@ -1187,4 +1285,66 @@ end
 test 'Render Does Not Read A Bare Dash As A Bullet';
 begin
     AssertEqual('<p>-not a bullet</p>' + #10, One('-not a bullet'));
+end
+
+test 'Slug Folds A Heading Down To An Identifier';
+begin
+    AssertEqual('4-lexical-elements', Slug('4. Lexical elements'));
+    AssertEqual('annex-a-grammar-summary-non-normative',
+                Slug('Annex A — grammar summary *(non-normative)*'));
+end
+
+/// Runs of punctuation collapse, and the ends carry none.
+test 'Slug Collapses Separators And Trims Them';
+begin
+    AssertEqual('a-b', Slug('  a --- b!!  '));
+    AssertEqual('', Slug('--- ...'));
+end
+
+test 'Render Gives A Chapter And A Section An Anchor';
+begin
+    AssertEqual('<h2 id="4-lexical-elements">4. Lexical elements</h2>' + #10,
+                One('## 4. Lexical elements'));
+    AssertEqual('<h3 id="4-1-comments">4.1 Comments</h3>' + #10, One('### 4.1 Comments'));
+end
+
+/// A case caption keeps the anchor its citations point at.
+test 'Render Does Not Slug A Case Caption';
+begin
+    var L := List();
+    L.Add('##### conformance/0089.a24');
+
+    AssertEqual('<h5 class="case" id="conformance-0089-a24">conformance/0089.a24</h5>' + #10,
+                Render(L));
+end
+
+test 'Contents Nests Sections Under Their Chapter';
+begin
+    var L := List();
+    L.Add('## 4. Lexical elements');
+    L.Add('### 4.1 Comments');
+    L.Add('### 4.2 Tokens');
+    L.Add('## 5. Types');
+
+    AssertEqual('<nav class="toc" aria-label="Contents">' + #10 + '<ol>' + #10
+              + '<li><a href="#4-lexical-elements">4. Lexical elements</a>' + #10
+              + '<ol>' + #10
+              + '<li><a href="#4-1-comments">4.1 Comments</a></li>' + #10
+              + '<li><a href="#4-2-tokens">4.2 Tokens</a></li>' + #10
+              + '</ol>' + #10 + '</li>' + #10
+              + '<li><a href="#5-types">5. Types</a></li>' + #10
+              + '</ol>' + #10 + '</nav>' + #10,
+                Contents(L));
+end
+
+/// A case name is a heading and is not contents.
+test 'Contents Ignores The Title And The Case Names';
+begin
+    var L := List();
+    L.Add('# Algol-24');
+    L.Add('##### conformance/0089.a24');
+
+    AssertEqual('<nav class="toc" aria-label="Contents">' + #10 + '<ol>' + #10
+              + '</ol>' + #10 + '</nav>' + #10,
+                Contents(L));
 end

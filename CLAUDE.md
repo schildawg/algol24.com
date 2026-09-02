@@ -41,11 +41,35 @@ the `{{...}}` placeholder lines. Both hold today.
 ## Architecture
 
 ```
-templates/*.html  ──> gen/Main.a24 ──> site/*.html
-                        │
-                        ├── gen/Template.a24   read and write
-                        └── gen/Strings.a24    Trim, StartsWith, Replace, Split
+templates/index.html      ──┐                 ┌──> site/index.html
+templates/reference.html  ──┤                 │
+templates/site.css        ──┤─> gen/Main.a24 ─┤
+templates/masthead.html   ──┤                 │
+templates/boot.html       ──┤                 └──> site/reference/index.html
+templates/theme.html      ──┘
+                             │
+                             ├── gen/Template.a24    read and write
+                             ├── gen/Strings.a24     Trim, StartsWith, Replace, Split
+                             ├── gen/Markdown.a24    the reader, and the reference
+                             └── gen/Highlight.a24   .a24 and console colouring
 ```
+
+**The last four templates are partials, and there is one copy of each.** Both
+pages need the same palette, masthead, pre-paint script and theme switch, and a
+second copy of any of them is a second thing to keep in step. `Shared` in
+`Main.a24` substitutes them.
+
+⚠️ **`templates/site.css` is the stylesheet and `prototype/index.html` still
+carries a literal copy of it**, because the prototype is the design reference
+and has to stand alone. The check is that they are identical:
+
+```sh
+diff <(sed -n '/<style>/,/<\/style>/p' prototype/index.html | sed '1d;$d') templates/site.css
+```
+
+The reference page is built from the **pinned** specification and the **pinned**
+scanner, so the rules it states and the keywords it colours both describe the
+compiler the rest of the site describes.
 
 `vendor/algol24` is a submodule doing **two jobs at once**: its `bootstrap/`
 builds `algc`, and its `ALGOL-24.md` and `README.md` are the source text for the
@@ -53,7 +77,7 @@ Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
-`v0.1.1`. The pin before it, `01b2778`, was rewritten out of the compiler
+`v0.1.2`. An earlier pin, `01b2778`, was rewritten out of the compiler
 repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -167,6 +191,21 @@ ignored, and is emitted fresh each run because the directory is built with
 ⚠️ `build.sh --test` still runs the tests **interpreted**, so nothing compares
 the two back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
+
+## Two traps this project has already hit
+
+⚠️ **`uses` brings a unit's names in unqualified, and a constant loses to an
+imported function.** `Main.a24` had `const Source` while `Highlight` has a
+`Source` function; the interpreter only *warned* about the clash, and the C back
+end emitted a reference to the function where the constant belonged and would
+not compile. It is now `Repo`. A name declared here has to be one no imported
+unit uses — and `--test` will not catch it, because the interpreter runs.
+
+⚠️ **A closed `<details>` hides its children in a way CSS cannot override.**
+`display: block` on the contents does not bring them back, so a table of
+contents cannot be collapsed by default and opened by a media query. The
+reference ships it **open** and closes it by script below 1180px, which also
+means the no-script failure shows the whole list rather than none of it.
 
 ## Writing Algol-24 here
 

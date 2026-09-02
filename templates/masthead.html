@@ -1,0 +1,33 @@
+<header class="bar">
+  <a class="wordmark" href="/" aria-label="Algol-24">
+    <!-- inlined, not <img>: an <img>-referenced SVG is a separate document and
+         cannot see data-theme, so it would ignore the toggle -->
+    <svg viewBox="0 0 512 512" aria-hidden="true">
+      <!-- ⚠️ In <defs>, and with no fill of its own. A referenced element's own
+           fill beats the one inherited from the <use>, so the fill="none" that
+           used to sit here made every star drawn from it invisible — the
+           wordmark's and the theme toggle's alike. <defs> is what stops the
+           template rendering at the origin, which is the job fill="none" was
+           doing. The hero's #sp is already written this way. -->
+      <defs>
+        <path id="s" d="M 0 -1 Q 0 0 .5 0 Q 0 0 0 1 Q 0 0 -.5 0 Q 0 0 0 -1 Z"/>
+      </defs>
+      <use href="#s" transform="translate(300 200) scale(112 232)" fill="var(--star-b)"/>
+      <use href="#s" transform="translate(176 336) scale(78 156)" fill="var(--star-a)"/>
+    </svg>
+    Algol<span class="nm">*</span>24
+  </a>
+  <nav class="bar-nav">
+    <a href="/#install">Install</a>
+    <a href="/#tour">Tour</a>
+    <a href="/reference/">Reference</a>
+    <a href="/#internals">Internals</a>
+    <a href="{{SOURCE}}">Source</a>
+  </nav>
+  <button class="eclipse" id="toggle" aria-label="Switch theme" title="Switch theme">
+    <svg viewBox="0 0 68 36" aria-hidden="true">
+      <use href="#s" transform="translate(21 18) scale(9 16)" fill="var(--star-a)" class="star-a-icon"/>
+      <use href="#s" transform="translate(47 18) scale(11 18)" fill="var(--star-b)" class="star-b-icon"/>
+    </svg>
+  </button>
+</header>

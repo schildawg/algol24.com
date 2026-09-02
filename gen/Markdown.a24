@@ -122,6 +122,81 @@ begin
     Exit '';
 end
 
+/// Whether a line is a citation, whatever it happens to cite.
+///
+/// CitedPath answers only for the kinds this document can point AT. A block is
+/// still a block of citations when its lines name a unit test or a defect, and
+/// deciding how to draw the block is a different question from whether each
+/// line can be linked.
+function IsCitation (Body : String) : Boolean;
+var
+    Kind := '';
+
+begin
+    if Length(Body) <= 13 then Exit False;
+
+    Kind := Trim(Copy(Body, 0, 13));
+
+    if Trim(Copy(Body, 13, Length(Body) - 13)) = '' then Exit False;
+
+    Exit (Kind = 'conformance') or (Kind = 'refusal')
+      or (Kind = 'unit') or (Kind = 'defect');
+end
+
+/// An indented block, drawn as citations or as code.
+///
+/// The two arrive as the same Markdown, and the document holds 225 lines of the
+/// first against 489 of the second, so telling them apart is worth the trouble:
+/// a citation is apparatus and a sample is content, and dressing them alike
+/// makes the reader sort them out for themselves. A block counts as citations
+/// when every line in it that is not blank is one.
+function Indent (Code : List, Cases : Map) : String;
+var
+    B     := Buffer();
+    Cites := True;
+    Any   := False;
+    First := True;
+
+begin
+    for var L in Code do
+        if Trim(L) <> '' then
+        begin
+            Any := True;
+
+            if not IsCitation(L) then Cites := False;
+        end
+
+    Cites := Any and Cites;
+
+    if Cites then B.Append('<div class="cites">');
+    else B.Append('<pre><code>');
+
+    for var L in Code do
+    begin
+        // ⚠️ A div with white-space: pre shows a trailing newline where a pre
+        // swallows it, so the separator goes BETWEEN lines rather than after.
+        if not First then B.Append(#10);
+
+        First := False;
+
+        var Path := CitedPath(L);
+
+        if (Path <> '') and Cases.Contains(Path) then
+        begin
+            B.Append(Escape(Copy(L, 0, 13)));
+            B.Append('<a href="#' + Cases.Get(Path) + '">');
+            B.Append(Escape(Trim(Copy(L, 13, Length(L) - 13))));
+            B.Append('</a>');
+        end
+        else B.Append(Escape(L));
+    end
+
+    if Cites then B.Append('</div>' + #10);
+    else B.Append(#10 + '</code></pre>' + #10);
+
+    Exit B.Text;
+end
+
 /// Every pair of Mark in Text wrapped in Open and Close.
 ///
 /// A mark with no partner after it is left as the character it is, rather than
@@ -450,6 +525,7 @@ var
     Quote   := List();
     Items   := List();
     Item    := '';
+    Code    := List();
     InFence := False;
     InCode  := False;
     Level   := 0;
@@ -490,7 +566,9 @@ begin
 
             if InCode and (not Indented) and (not Blank) then
             begin
-                Out.Append('</code></pre>' + #10);
+                Out.Append(Indent(Code, Cases));
+
+                Code   := List();
                 InCode := False;
             end
 
@@ -565,27 +643,11 @@ begin
                 end
                 else if Indented then
                 begin
-                    if not InCode then
-                    begin
-                        Out.Append('<pre><code>');
-                        InCode := True;
-                    end
+                    InCode := True;
 
-                    var Body := Copy(Raw, 4, Length(Raw) - 4);
-                    var Path := CitedPath(Body);
-
-                    // ⚠️ The kind field is emitted whole so the column keeps its
-                    // alignment; only the name becomes the link.
-                    if (Path <> '') and Cases.Contains(Path) then
-                    begin
-                        Out.Append(Escape(Copy(Body, 0, 13)));
-                        Out.Append('<a href="#' + Cases.Get(Path) + '">');
-                        Out.Append(Escape(Trim(Copy(Body, 13, Length(Body) - 13))));
-                        Out.Append('</a>' + #10);
-                    end
-                    else Out.Append(Escape(Body) + #10);
+                    Code.Add(Copy(Raw, 4, Length(Raw) - 4));
                 end
-                else if Blank and InCode then Out.Append(#10);
+                else if Blank and InCode then Code.Add('');
             end
         end
     end
@@ -601,7 +663,7 @@ begin
         Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases, Words)
                  + '</blockquote>' + #10);
 
-    if InCode  then Out.Append('</code></pre>' + #10);
+    if InCode  then Out.Append(Indent(Code, Cases));
     if InFence then Out.Append('</code></pre>' + #10);
 
     Exit Out.Text;
@@ -721,9 +783,33 @@ end
 test 'Render Makes An Indented Block Into Code';
 begin
     var L := List();
-    L.Add('    conformance  0089.a24');
+    L.Add('    WriteLn (1);');
 
-    AssertEqual('<pre><code>conformance  0089.a24' + #10 + '</code></pre>' + #10, Render(L));
+    AssertEqual('<pre><code>WriteLn (1);' + #10 + '</code></pre>' + #10, Render(L));
+end
+
+/// Apparatus and content arrive as the same Markdown and are drawn apart.
+test 'Render Draws A Block Of Only Citations As Citations';
+begin
+    var L := List();
+    L.Add('    unit         Scan Operators');
+    L.Add('    defect       DEF-34');
+
+    AssertEqual('<div class="cites">unit         Scan Operators' + #10
+              + 'defect       DEF-34</div>' + #10,
+                Render(L));
+end
+
+/// One line of code in it and the whole block is a sample.
+test 'Render Draws A Mixed Block As Code';
+begin
+    var L := List();
+    L.Add('    unit         Scan Operators');
+    L.Add('    WriteLn (1);');
+
+    AssertEqual('<pre><code>unit         Scan Operators' + #10
+              + 'WriteLn (1);' + #10 + '</code></pre>' + #10,
+                Render(L));
 end
 
 /// The citation lists under a rule are one block with blank lines in them.
@@ -824,8 +910,8 @@ begin
     L.Add('    conformance  0089.a24');
 
     AssertEqual('<h5 class="case" id="conformance-0089-a24">conformance/0089.a24</h5>' + #10
-              + '<pre><code>conformance  <a href="#conformance-0089-a24">0089.a24</a>' + #10
-              + '</code></pre>' + #10,
+              + '<div class="cites">conformance  '
+              + '<a href="#conformance-0089-a24">0089.a24</a></div>' + #10,
                 Render(L));
 end
 
@@ -835,7 +921,7 @@ begin
     var L := List();
     L.Add('    conformance  TBD');
 
-    AssertEqual('<pre><code>conformance  TBD' + #10 + '</code></pre>' + #10, Render(L));
+    AssertEqual('<div class="cites">conformance  TBD</div>' + #10, Render(L));
 end
 
 test 'IsSeparator Needs A Dash, Not Merely Pipes';

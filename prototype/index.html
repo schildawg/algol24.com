@@ -37,6 +37,8 @@
     --code-com:    #6B7C99;
     --code-fn:     #1264C7;
     --code-num:    #7A3EA8;
+    --log-error:   #B3261E;
+    --log-info:    #1264C7;
     --case-bg:     #DCEBFB;
     --case-text:   #00153D;
     --shadow:      0 1px 2px rgba(0, 21, 61, .06), 0 8px 28px rgba(0, 21, 61, .06);
@@ -64,7 +66,11 @@
       --code-com:   #7A8CA8;
       --code-fn:    #8FC2F6;
       --code-num:   #D2A7F0;
-      --case-bg:    #3B2A0E;
+      --log-error:  #FF7B72;
+      --log-info:   #8FC2F6;
+      --log-error:  #FF7B72;
+    --log-info:   #8FC2F6;
+    --case-bg:    #3B2A0E;
       --case-text:  #FFC46B;
       --case-bg:    #3B2A0E;
     --case-text:  #FFC46B;
@@ -205,6 +211,37 @@
     max-width: none;
   }
   p.shell + pre { border-radius: 0 0 9px 9px; box-shadow: none; margin-top: 0; }
+
+  /* ⚠️ Only the WORD takes a colour; the brackets and the message keep the
+     colour of the surrounding output. That is what algc does on a terminal,
+     and the tag is the part that gets scanned for.
+
+     Blue stays blue in both themes, lifted on the ink to 8.55:1 -- the most
+     readable thing on that panel. Orange was considered and is worse: 6.78:1
+     there, and it is what --accent already means in dark, so an orange tag
+     would read as a link beside the real ones. */
+  .log-error { color: var(--log-error); font-weight: 600; }
+  .log-info  { color: var(--log-info);  font-weight: 600; }
+
+  /* A citation is apparatus and a sample is content, and they arrive as the
+     same Markdown -- 225 lines of the first against 489 of the second. Ruled
+     above and below rather than boxed, so a rule's evidence does not wear the
+     clothes of its examples. */
+  .cites {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--muted);
+    white-space: pre;
+    overflow-x: auto;
+    border-top: 1px solid var(--panel-line);
+    border-bottom: 1px solid var(--panel-line);
+    padding: 9px 0;
+    margin: 0 0 18px;
+  }
+  .cites a { color: var(--accent); text-decoration: none; }
+  .cites a:hover { text-decoration: underline; }
+
 
 
   nav.bar-nav { display: flex; gap: 18px; font-size: 14px; }

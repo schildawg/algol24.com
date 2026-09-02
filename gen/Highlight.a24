@@ -205,6 +205,62 @@ begin
     Exit B.Text;
 end
 
+/// The class a log tag takes, or '' when the word is not one.
+///
+/// Two, because two is what the specification's console output contains: 93
+/// [ERROR] and 52 [INFO]. algc prints others -- PASS, FAIL, WARN -- and none of
+/// them appears in a console block here, so none is coloured until one does.
+function TagClass (Tag : String) : String;
+begin
+    if Tag = 'ERROR' then Exit 'log-error';
+    if Tag = 'INFO' then Exit 'log-info';
+
+    Exit '';
+end
+
+/// A line of output with its log tag coloured.
+///
+/// Only the word inside the brackets takes a colour. The brackets and the
+/// message keep the colour of the surrounding output, which is what algc does
+/// on a terminal: the tag is the part that is scanned for.
+///
+/// A bracketed group anywhere in the line is considered, so '[ PASS ]' at the
+/// end of a test report would be found as readily as '[ERROR]' at the start,
+/// and a group that is not a known tag is left as the text it is.
+function Tagged (Text : String) : String;
+var
+    B     := Buffer();
+    Start := 0;
+    At    := 0;
+
+begin
+    At := Pos(Text, '[', 0);
+
+    while At >= 0 do
+    begin
+        var Shut := Pos(Text, ']', At + 1);
+        var Cls  := '';
+
+        if Shut >= 0 then Cls := TagClass(Trim(Copy(Text, At + 1, Shut - At - 1)));
+
+        if Cls = '' then At := Pos(Text, '[', At + 1);
+        else
+        begin
+            B.Append(Escape(Copy(Text, Start, At - Start)));
+            B.Append('[<span class="' + Cls + '">');
+            B.Append(Escape(Copy(Text, At + 1, Shut - At - 1)));
+            B.Append('</span>]');
+
+            Start := Shut + 1;
+            At    := Pos(Text, '[', Start);
+        end
+    end
+
+    B.Append(Escape(Copy(Text, Start, Length(Text) - Start)));
+
+    Exit B.Text;
+end
+
 /// A console session, marked up.
 ///
 /// The command is what the reader types and the rest is what the machine
@@ -213,7 +269,7 @@ function Console (Text : String) : String;
 begin
     if StartsWith(Text, '$ ') then Exit Escape(Text);
 
-    Exit '<span class="out">' + Escape(Text) + '</span>';
+    Exit '<span class="out">' + Tagged(Text) + '</span>';
 end
 
 /// Two keywords, for tests that do not want the whole table.
@@ -309,4 +365,28 @@ test 'Console Tells A Command From What It Answers';
 begin
     AssertEqual('$ algc x.a24', Console('$ algc x.a24'));
     AssertEqual('<span class="out">hello</span>', Console('hello'));
+end
+
+test 'Tagged Colours The Word And Not The Brackets';
+begin
+    AssertEqual('[<span class="log-error">ERROR</span>] boom', Tagged('[ERROR] boom'));
+    AssertEqual('[<span class="log-info">INFO</span>] ready', Tagged('[INFO] ready'));
+end
+
+/// Rule ids and subscripts are bracketed too, and are not tags.
+test 'Tagged Leaves A Group That Is Not A Tag Alone';
+begin
+    AssertEqual('[RT-005] holds', Tagged('[RT-005] holds'));
+    AssertEqual('a[I] := 1', Tagged('a[I] := 1'));
+end
+
+test 'Tagged Finds A Tag That Is Not At The Start';
+begin
+    AssertEqual('Test: X [<span class="log-error">ERROR</span>]', Tagged('Test: X [ERROR]'));
+end
+
+test 'Console Colours A Tag Inside The Output';
+begin
+    AssertEqual('<span class="out">[<span class="log-error">ERROR</span>] x.a24</span>',
+                Console('[ERROR] x.a24'));
 end

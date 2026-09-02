@@ -207,6 +207,29 @@
      by the block they name, so nothing has to wrap them. */
   h5.case + pre { border-radius: 0 0 9px 9px; box-shadow: none; margin-top: 0; }
 
+  /* The bar over a console block. Neutral on purpose -- the eclipse colour is
+     reserved for the case name, and two coloured bars in a row would claim the
+     source and the run are the same kind of thing.
+
+     ⚠️ max-width: none, because 'p' is held to the reading measure and a bar
+     that stops short of the block beneath it looks like a mistake. */
+  p.shell {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-bottom: 0;
+    border-radius: 9px 9px 0 0;
+    padding: 7px 14px;
+    margin: 18px 0 0;
+    max-width: none;
+  }
+  p.shell + pre { border-radius: 0 0 9px 9px; box-shadow: none; margin-top: 0; }
+
+
   nav.bar-nav { display: flex; gap: 18px; font-size: 14px; }
   nav.bar-nav a { color: var(--muted); text-decoration: none; }
   nav.bar-nav a:hover { color: var(--accent); }

@@ -65,6 +65,13 @@ begin
 
     if Lang = '' then Exit '<pre><code>';
 
+    // ⚠️ A console block is the case being RUN, and there are exactly as many
+    // of them as there are cases. It gets a neutral bar rather than a starred
+    // one: the eclipse colour belongs to the case's name, and two coloured bars
+    // in a row would claim the two blocks are the same kind of thing.
+    if Lang = 'console' then
+        Exit '<p class="shell">Shell</p><pre><code class="language-console">';
+
     Exit '<pre><code class="language-' + Lang + '">';
 end
 
@@ -402,6 +409,22 @@ begin
     Exit Out;
 end
 
+/// A run of bullet items as a list.
+function Bullets (Items : List) : String;
+var
+    B := Buffer();
+
+begin
+    B.Append('<ul>');
+
+    for var I in Items do
+        B.Append('<li>' + Inline(I) + '</li>');
+
+    B.Append('</ul>' + #10);
+
+    Exit B.Text;
+end
+
 /// Whether a line is a horizontal rule.
 ///
 /// Every one of the document's rules follows a blank line, so none of them is
@@ -440,6 +463,8 @@ var
     Para    := '';
     Rows    := List();
     Quote   := List();
+    Items   := List();
+    Item    := '';
     InFence := False;
     InCode  := False;
     Level   := 0;
@@ -464,8 +489,16 @@ begin
             var Tabled   := StartsWith(Raw, '|');
             var Quoted   := StartsWith(Raw, '>');
             var Ruled    := IsRule(Raw);
+            var Bulleted := StartsWith(Raw, '- ');
 
             Level := HeadingLevel(Raw);
+
+            // An item wraps onto lines indented by two spaces, which is why
+            // they are not code: code wants four.
+            var InList    := (Items.Length > 0) or (Item <> '');
+            var Continues := InList and (not Blank) and (not Bulleted)
+                           and (not Indented) and (not Fenced) and (not Tabled)
+                           and (not Quoted) and (not Ruled) and (Level = 0);
 
             if InCode and (not Indented) and (not Blank) then
             begin
@@ -479,6 +512,16 @@ begin
                 Rows := List();
             end
 
+            if InList and (not Bulleted) and (not Continues) then
+            begin
+                if Item <> '' then Items.Add(Item);
+
+                Out.Append(Bullets(Items));
+
+                Item  := '';
+                Items := List();
+            end
+
             if (Quote.Length > 0) and (not Quoted) then
             begin
                 Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases)
@@ -486,8 +529,10 @@ begin
                 Quote := List();
             end
 
-            if (not Blank) and (not Indented) and (not Fenced) and (not Tabled)
-                           and (not Quoted) and (not Ruled) and (Level = 0) then
+            if Continues then Item := Item + ' ' + Trim(Raw);
+            else if (not Blank) and (not Indented) and (not Fenced) and (not Tabled)
+                                and (not Quoted) and (not Ruled) and (not Bulleted)
+                                and (Level = 0) then
             begin
                 if Para = '' then Para := Trim(Raw);
                 else Para := Para + ' ' + Trim(Raw);
@@ -500,7 +545,13 @@ begin
                     Para := '';
                 end
 
-                if Tabled then Rows.Add(Raw);
+                if Bulleted then
+                begin
+                    if Item <> '' then Items.Add(Item);
+
+                    Item := Trim(Copy(Raw, 2, Length(Raw) - 2));
+                end
+                else if Tabled then Rows.Add(Raw);
                 else if Quoted then Quote.Add(Raw);
                 else if Ruled then Out.Append('<hr>' + #10);
                 else if Fenced then
@@ -551,6 +602,10 @@ begin
     end
 
     if Para <> '' then Out.Append('<p>' + Inline(Para) + '</p>' + #10);
+
+    if Item <> '' then Items.Add(Item);
+    if Items.Length > 0 then Out.Append(Bullets(Items));
+
     if Rows.Length > 0 then Out.Append(Table(Rows));
 
     if Quote.Length > 0 then
@@ -887,4 +942,60 @@ test 'Render Does Not Read A Table Out Of Indented Code';
 begin
     AssertEqual('<pre><code>| not | a table |' + #10 + '</code></pre>' + #10,
                 One('    | not | a table |'));
+end
+
+test 'Render Makes A List Of Bullet Items';
+begin
+    var L := List();
+    L.Add('- one');
+    L.Add('- two');
+
+    AssertEqual('<ul><li>one</li><li>two</li></ul>' + #10, Render(L));
+end
+
+/// An item wraps onto lines indented by two spaces, which is why they are not
+/// code: code wants four.
+test 'Render Joins An Item With Its Continuation Line';
+begin
+    var L := List();
+    L.Add('- Arms compare with `=`, so a Double matches an');
+    L.Add('  Integer arm of the same value.');
+
+    AssertEqual('<ul><li>Arms compare with <code>=</code>, so a Double matches an '
+              + 'Integer arm of the same value.</li></ul>' + #10,
+                Render(L));
+end
+
+test 'Render Closes A List When The Prose Resumes';
+begin
+    var L := List();
+    L.Add('- item');
+    L.Add('');
+    L.Add('after');
+
+    AssertEqual('<ul><li>item</li></ul>' + #10 + '<p>after</p>' + #10, Render(L));
+end
+
+test 'Render Reads Markdown Inside An Item';
+begin
+    AssertEqual('<ul><li><strong>bold</strong> item</li></ul>' + #10, One('- **bold** item'));
+end
+
+/// The console block is the case being run, and is labelled as Zig labels its.
+test 'Render Labels A Console Block';
+begin
+    var L := List();
+    L.Add('```console');
+    L.Add('$ algc x.a24');
+    L.Add('```');
+
+    AssertEqual('<p class="shell">Shell</p><pre><code class="language-console">$ algc x.a24'
+              + #10 + '</code></pre>' + #10,
+                Render(L));
+end
+
+/// A dash that opens no item is prose.
+test 'Render Does Not Read A Bare Dash As A Bullet';
+begin
+    AssertEqual('<p>-not a bullet</p>' + #10, One('-not a bullet'));
 end

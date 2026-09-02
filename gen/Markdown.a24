@@ -513,7 +513,12 @@ begin
                     var Head := Trim(Copy(Raw, Level, Length(Raw) - Level));
                     var Id   := '';
 
-                    if Cases.Contains(Head) then Id := ' id="' + Cases.Get(Head) + '"';
+                    // ⚠️ A class as well as an id. The case name is drawn as a
+                    // caption on the block it names, and every one of the 239 is
+                    // followed immediately by that block, so the join is done in
+                    // CSS by adjacency rather than by wrapping anything here.
+                    if Cases.Contains(Head) then
+                        Id := ' class="case" id="' + Cases.Get(Head) + '"';
 
                     Out.Append('<h' + Str(Level) + Id + '>' + Inline(Head)
                              + '</h' + Str(Level) + '>' + #10);
@@ -758,7 +763,7 @@ end
 
 test 'Render Gives An Included Case Heading An Anchor';
 begin
-    AssertEqual('<h5 id="conformance-0051-a24">conformance/0051.a24</h5>' + #10,
+    AssertEqual('<h5 class="case" id="conformance-0051-a24">conformance/0051.a24</h5>' + #10,
                 One('##### conformance/0051.a24'));
 end
 
@@ -769,7 +774,7 @@ begin
     L.Add('');
     L.Add('    conformance  0089.a24');
 
-    AssertEqual('<h5 id="conformance-0089-a24">conformance/0089.a24</h5>' + #10
+    AssertEqual('<h5 class="case" id="conformance-0089-a24">conformance/0089.a24</h5>' + #10
               + '<pre><code>conformance  <a href="#conformance-0089-a24">0089.a24</a>' + #10
               + '</code></pre>' + #10,
                 Render(L));

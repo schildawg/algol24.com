@@ -60,6 +60,8 @@
     --code-com:    #6B7C99;
     --code-fn:     #1264C7;
     --code-num:    #7A3EA8;
+    --case-bg:     #DCEBFB;
+    --case-text:   #00153D;
     --shadow:      0 1px 2px rgba(0, 21, 61, .06), 0 8px 28px rgba(0, 21, 61, .06);
 
     --measure: 66ch;
@@ -85,7 +87,11 @@
       --code-com:   #7A8CA8;
       --code-fn:    #8FC2F6;
       --code-num:   #D2A7F0;
-      --shadow:     0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
+      --case-bg:    #3B2A0E;
+      --case-text:  #FFC46B;
+      --case-bg:    #3B2A0E;
+    --case-text:  #FFC46B;
+    --shadow:     0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
     }
   }
 
@@ -175,6 +181,31 @@
      .nm-big adds it. See brand/BRAND.md. */
   .nm { vertical-align: -.16em; font-size: .88em; padding-inline: .02em; }
   .nm-big { vertical-align: -.10em; font-size: .9em; color: var(--rule); }
+
+
+  /* ⚠️ Inert on this page, and here because this is where the palette lives.
+     A conformance case in the reference is drawn as a caption ON the block it
+     names, in the manner of the Zig reference, and it carries the LEADING
+     star's colour so it turns over with the eclipse: Algol A's blue on white,
+     Algol B's amber on the ink. Both pairs are far past the contrast floor --
+     14.8:1 and 8.8:1 -- because a caption is small text on a tint, which is
+     where the orange usually gets into trouble. */
+  h5.case {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 620;
+    font-style: italic;
+    color: var(--case-text);
+    background: var(--case-bg);
+    border: 1px solid var(--panel-line);
+    border-bottom: 0;
+    border-radius: 9px 9px 0 0;
+    padding: 8px 14px;
+    margin: 28px 0 0;
+  }
+  /* The join is by adjacency: all 239 case headings are followed immediately
+     by the block they name, so nothing has to wrap them. */
+  h5.case + pre { border-radius: 0 0 9px 9px; box-shadow: none; margin-top: 0; }
 
   nav.bar-nav { display: flex; gap: 18px; font-size: 14px; }
   nav.bar-nav a { color: var(--muted); text-decoration: none; }

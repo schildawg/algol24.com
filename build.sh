@@ -37,7 +37,14 @@ if [ "$have" != "$want" ]; then
 fi
 
 if [ "${1-}" = "--test" ]; then
-    exec "$ALGC" --test gen/Main.a24
+    # ⚠️ Two roots, and the second is temporary. --test is transitive over
+    # 'uses', so naming Main runs everything Main can reach -- and it cannot
+    # reach Markdown, because the reference page that unit exists for has not
+    # been wired up yet and nothing imports it. Named on its own it would have
+    # gone untested here and in CI, which is how sixteen passing tests turn
+    # into no tests at all. Delete the second line the day Main uses Markdown.
+    "$ALGC" --test gen/Main.a24 || exit 70
+    exec "$ALGC" --test gen/Markdown.a24
 fi
 
 # ⚠️ The language cannot create a directory, so the output tree has to exist

@@ -1,0 +1,332 @@
+/// Markdown to HTML, as much of it as the specification actually uses.
+///
+/// This pass understands headings, paragraphs, fenced code, indented code and
+/// inline code spans. Emphasis, links and tables are not here yet, and appear
+/// in the output as the characters that spell them.
+///
+/// Everything works a line at a time, deliberately. A character index into a
+/// string holding any non-ASCII character walks from the start to find its
+/// byte offset, so reaching into a whole 352 KB document is quadratic while
+/// reaching into one short line is not. Read with Template.ReadLines and the
+/// question never comes up.
+unit Markdown;
+
+uses Strings;
+
+/// Text with the three characters HTML reserves replaced by entities.
+///
+/// The ampersand is replaced first. Doing it last would rewrite the ampersands
+/// that the other two had just introduced, and every entity on the page would
+/// arrive doubly escaped.
+function Escape (Text : String) : String;
+var
+    S := '';
+
+begin
+    S := Replace(Text, '&', '&amp;');
+    S := Replace(S, '<', '&lt;');
+
+    Exit Replace(S, '>', '&gt;');
+end
+
+/// The number of '#' a line opens with, or zero when it is not a heading.
+///
+/// A run of '#' is only a heading when a space follows it, which is what keeps
+/// a line of hashes and a comment like '###' from becoming one.
+function HeadingLevel (Line : String) : Integer;
+var
+    N := 0;
+
+begin
+    while (N < Length(Line)) and (Line[N] = '#') do
+        N := N + 1;
+
+    if N = 0 then Exit 0;
+    if N >= Length(Line) then Exit 0;
+    if Line[N] <> ' ' then Exit 0;
+
+    Exit N;
+end
+
+/// The opening tags for a fenced block, naming its language when it has one.
+///
+/// The specification fences with 'algol' and 'console' and nothing else. The
+/// class is the hook the syntax highlighter will want.
+function OpenFence (Line : String) : String;
+var
+    Lang := '';
+
+begin
+    Lang := Trim(Copy(Line, 3, Length(Line) - 3));
+
+    if Lang = '' then Exit '<pre><code>';
+
+    Exit '<pre><code class="language-' + Lang + '">';
+end
+
+/// One line of inline Markdown as HTML.
+///
+/// Escaping happens once, first, over the whole line, so the text inside a code
+/// span is escaped too. Backticks toggle, and a line whose backticks do not
+/// pair leaves an element open, so the last one is closed here rather than
+/// left for the browser to guess at.
+function Inline (Text : String) : String;
+var
+    B     := Buffer();
+    Safe  := '';
+    Start := 0;
+    At    := 0;
+    Open  := False;
+
+begin
+    Safe := Escape(Text);
+    At   := Pos(Safe, '`', 0);
+
+    while At >= 0 do
+    begin
+        B.Append(Copy(Safe, Start, At - Start));
+
+        if Open then B.Append('</code>');
+        else B.Append('<code>');
+
+        Open  := not Open;
+        Start := At + 1;
+        At    := Pos(Safe, '`', Start);
+    end
+
+    B.Append(Copy(Safe, Start, Length(Safe) - Start));
+
+    if Open then B.Append('</code>');
+
+    Exit B.Text;
+end
+
+/// The lines of a Markdown document rendered as HTML.
+///
+/// A block is closed by what follows it rather than by anything of its own, so
+/// there is a single place where an open paragraph or an open indented block is
+/// finished, and a second at the end for whatever the document left open. A
+/// blank line does not close an indented block: a run of them separated by
+/// blank lines is one block, which is what the citation lists under each rule
+/// depend on.
+function Render (Lines : List) : String;
+var
+    Out      := Buffer();
+    Para     := '';
+    InFence  := False;
+    InCode   := False;
+    Level    := 0;
+
+begin
+    for var Raw in Lines do
+    begin
+        if InFence then
+        begin
+            if StartsWith(Raw, '```') then
+            begin
+                Out.Append('</code></pre>' + #10);
+                InFence := False;
+            end
+            else Out.Append(Escape(Raw) + #10);
+        end
+        else
+        begin
+            var Blank    := Trim(Raw) = '';
+            var Indented := StartsWith(Raw, '    ') and (not Blank);
+            var Fenced   := StartsWith(Raw, '```');
+
+            Level := HeadingLevel(Raw);
+
+            if InCode and (not Indented) and (not Blank) then
+            begin
+                Out.Append('</code></pre>' + #10);
+                InCode := False;
+            end
+
+            if (not Blank) and (not Indented) and (not Fenced) and (Level = 0) then
+            begin
+                if Para = '' then Para := Trim(Raw);
+                else Para := Para + ' ' + Trim(Raw);
+            end
+            else
+            begin
+                if Para <> '' then
+                begin
+                    Out.Append('<p>' + Inline(Para) + '</p>' + #10);
+                    Para := '';
+                end
+
+                if Fenced then
+                begin
+                    Out.Append(OpenFence(Raw));
+                    InFence := True;
+                end
+                else if Level > 0 then
+                    Out.Append('<h' + Str(Level) + '>'
+                             + Inline(Trim(Copy(Raw, Level, Length(Raw) - Level)))
+                             + '</h' + Str(Level) + '>' + #10);
+                else if Indented then
+                begin
+                    if not InCode then
+                    begin
+                        Out.Append('<pre><code>');
+                        InCode := True;
+                    end
+
+                    Out.Append(Escape(Copy(Raw, 4, Length(Raw) - 4)) + #10);
+                end
+                else if Blank and InCode then Out.Append(#10);
+            end
+        end
+    end
+
+    if Para <> '' then Out.Append('<p>' + Inline(Para) + '</p>' + #10);
+    if InCode  then Out.Append('</code></pre>' + #10);
+    if InFence then Out.Append('</code></pre>' + #10);
+
+    Exit Out.Text;
+end
+
+/// Renders one line, which is all most of these tests need.
+function One (Line : String) : String;
+var
+    L := List();
+
+begin
+    L.Add(Line);
+
+    Exit Render(L);
+end
+
+test 'Escape Replaces The Three Reserved Characters';
+begin
+    AssertEqual('&lt;pre&gt;', Escape('<pre>'));
+    AssertEqual('&amp;amp;', Escape('&amp;'));
+end
+
+test 'HeadingLevel Counts Hashes And Requires A Space';
+begin
+    AssertEqual(1, HeadingLevel('# One'));
+    AssertEqual(3, HeadingLevel('### Three'));
+    AssertEqual(5, HeadingLevel('##### Five'));
+    AssertEqual(0, HeadingLevel('###'));
+    AssertEqual(0, HeadingLevel('#NoSpace'));
+    AssertEqual(0, HeadingLevel('not a heading'));
+end
+
+test 'Render Makes A Heading At Its Level';
+begin
+    AssertEqual('<h2>Notation</h2>' + #10, One('## Notation'));
+end
+
+test 'Render Joins The Lines Of A Paragraph';
+begin
+    var L := List();
+    L.Add('one two');
+    L.Add('three four');
+
+    AssertEqual('<p>one two three four</p>' + #10, Render(L));
+end
+
+test 'Render Separates Paragraphs On A Blank Line';
+begin
+    var L := List();
+    L.Add('first');
+    L.Add('');
+    L.Add('second');
+
+    AssertEqual('<p>first</p>' + #10 + '<p>second</p>' + #10, Render(L));
+end
+
+test 'Render Turns Backticks Into Code Spans';
+begin
+    AssertEqual('<p>a <code>Pos</code> call</p>' + #10, One('a `Pos` call'));
+end
+
+test 'Render Escapes Inside A Code Span As Well As Outside';
+begin
+    AssertEqual('<p><code>a &lt; b</code></p>' + #10, One('`a < b`'));
+end
+
+/// An unpaired backtick would otherwise leave the element open.
+test 'Render Closes A Code Span The Line Left Open';
+begin
+    AssertEqual('<p>an <code>open span</code></p>' + #10, One('an `open span'));
+end
+
+test 'Render Carries The Language Of A Fenced Block';
+begin
+    var L := List();
+    L.Add('```algol');
+    L.Add('begin');
+    L.Add('```');
+
+    AssertEqual('<pre><code class="language-algol">begin' + #10 + '</code></pre>' + #10,
+                Render(L));
+end
+
+test 'Render Fences Without A Language Too';
+begin
+    var L := List();
+    L.Add('```');
+    L.Add('plain');
+    L.Add('```');
+
+    AssertEqual('<pre><code>plain' + #10 + '</code></pre>' + #10, Render(L));
+end
+
+/// Markdown inside a fence is text, not markup.
+test 'Render Leaves A Fenced Block Alone';
+begin
+    var L := List();
+    L.Add('```');
+    L.Add('# not a heading and `not` a span');
+    L.Add('```');
+
+    AssertEqual('<pre><code># not a heading and `not` a span' + #10 + '</code></pre>' + #10,
+                Render(L));
+end
+
+test 'Render Makes An Indented Block Into Code';
+begin
+    var L := List();
+    L.Add('    conformance  0089.a24');
+
+    AssertEqual('<pre><code>conformance  0089.a24' + #10 + '</code></pre>' + #10, Render(L));
+end
+
+/// The citation lists under a rule are one block with blank lines in them.
+test 'Render Keeps An Indented Block Open Across A Blank Line';
+begin
+    var L := List();
+    L.Add('    one');
+    L.Add('');
+    L.Add('    two');
+
+    AssertEqual('<pre><code>one' + #10 + #10 + 'two' + #10 + '</code></pre>' + #10,
+                Render(L));
+end
+
+test 'Render Closes An Indented Block When Prose Resumes';
+begin
+    var L := List();
+    L.Add('    code');
+    L.Add('prose');
+
+    AssertEqual('<pre><code>code' + #10 + '</code></pre>' + #10 + '<p>prose</p>' + #10,
+                Render(L));
+end
+
+test 'Render Closes A Paragraph Before A Heading';
+begin
+    var L := List();
+    L.Add('text');
+    L.Add('## After');
+
+    AssertEqual('<p>text</p>' + #10 + '<h2>After</h2>' + #10, Render(L));
+end
+
+test 'Render Answers Nothing For Nothing';
+begin
+    AssertEqual('', Render(List()));
+end

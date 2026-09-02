@@ -38,7 +38,12 @@ jobs:
       - name: Test the generator
         # The generator has its own test blocks. A site that fails its tests
         # should not reach the artifact.
-        run: vendor/algol24/bootstrap/algc --test gen/Main.a24
+        #
+        # ⚠️ Two roots. --test is transitive over 'uses', and Markdown is not
+        # yet reachable from Main, so naming Main alone would silently skip it.
+        run: |
+          vendor/algol24/bootstrap/algc --test gen/Main.a24
+          vendor/algol24/bootstrap/algc --test gen/Markdown.a24
 
       - name: Generate the site
         # ⚠️ mkdir first: Algol-24 cannot create a directory, so the output tree

@@ -165,6 +165,17 @@
   }
   .wordmark svg { width: 26px; height: 26px; display: block; }
 
+  /* ⚠️ The asterisk in the wordmark, and why it is never left raw. Every font
+     sets '*' at footnote height, so an untouched 'Algol*24' reads as a
+     reference mark — "Algol, see note 24". Lowering it to the optical centre
+     is what makes it a separator instead.
+
+     ⚠️ Tinted at display size only. The orange is 3.52:1 on white, which large
+     text may use and a 15px wordmark may not, so .nm carries no color and
+     .nm-big adds it. See brand/BRAND.md. */
+  .nm { vertical-align: -.16em; font-size: .88em; padding-inline: .02em; }
+  .nm-big { vertical-align: -.10em; font-size: .9em; color: var(--rule); }
+
   nav.bar-nav { display: flex; gap: 18px; font-size: 14px; }
   nav.bar-nav a { color: var(--muted); text-decoration: none; }
   nav.bar-nav a:hover { color: var(--accent); }
@@ -312,15 +323,23 @@
 </head>
 <body>
 <header class="bar">
-  <a class="wordmark" href="#top">
+  <a class="wordmark" href="#top" aria-label="Algol-24">
     <!-- inlined, not <img>: an <img>-referenced SVG is a separate document and
          cannot see data-theme, so it would ignore the toggle -->
     <svg viewBox="0 0 512 512" aria-hidden="true">
-      <path id="s" d="M 0 -1 Q 0 0 .5 0 Q 0 0 0 1 Q 0 0 -.5 0 Q 0 0 0 -1 Z" fill="none"/>
+      <!-- ⚠️ In <defs>, and with no fill of its own. A referenced element's own
+           fill beats the one inherited from the <use>, so the fill="none" that
+           used to sit here made every star drawn from it invisible — the
+           wordmark's and the theme toggle's alike. <defs> is what stops the
+           template rendering at the origin, which is the job fill="none" was
+           doing. The hero's #sp is already written this way. -->
+      <defs>
+        <path id="s" d="M 0 -1 Q 0 0 .5 0 Q 0 0 0 1 Q 0 0 -.5 0 Q 0 0 0 -1 Z"/>
+      </defs>
       <use href="#s" transform="translate(300 200) scale(112 232)" fill="var(--star-b)"/>
       <use href="#s" transform="translate(176 336) scale(78 156)" fill="var(--star-a)"/>
     </svg>
-    Algol-24
+    Algol<span class="nm">*</span>24
   </a>
   <nav class="bar-nav">
     <a href="#install">Install</a>
@@ -375,7 +394,7 @@
       <use href="#sp" transform="translate(362 302) scale(16 34)" fill="var(--third)"/>
     </svg>
 
-    <h1>Algol-24</h1>
+    <h1 aria-label="Algol-24">Algol<span class="nm nm-big">*</span>24</h1>
     <p class="lede">A retro-modern language: classic Pascal syntax over unbounded
        integers, full Unicode, gradual types, closures and a foreign function interface.
        The compiler is written in Algol-24 and compiles itself.</p>
@@ -388,9 +407,24 @@
       <a class="btn btn-ghost" href="{{SOURCE}}">Source on GitHub</a>
     </div>
 
-<pre class="plain"><span class="kw">begin</span>
-    <span class="fn">WriteLn</span>(<span class="str">'Hello, world.'</span>);
-<span class="kw">end</span></pre>
+<pre class="plain"><span class="kw">class</span> Doughnut;
+<span class="kw">begin</span>
+    <span class="kw">procedure</span> <span class="fn">Cook</span>();
+    <span class="kw">begin</span>
+        <span class="fn">WriteLn</span> (<span class="str">'Fry until golden!'</span>);
+    <span class="kw">end</span>
+<span class="kw">end</span>
+
+<span class="kw">class</span> BostonCream(Doughnut);
+<span class="kw">begin</span>
+    <span class="kw">procedure</span> <span class="fn">Cook</span>();
+    <span class="kw">begin</span>
+        <span class="kw">super</span>.<span class="fn">Cook</span>();
+        <span class="fn">WriteLn</span> (<span class="str">'Pipe full of custard and coat with chocolate!'</span>);
+    <span class="kw">end</span>
+<span class="kw">end</span>
+
+BostonCream().<span class="fn">Cook</span>();</pre>
   </section>
 
   <div class="band tint">

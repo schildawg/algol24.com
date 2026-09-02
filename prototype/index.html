@@ -239,6 +239,12 @@
     padding: 9px 0;
     margin: 0 0 18px;
   }
+
+  /* 614 of these in the reference, so they are restrained on purpose: the
+     accent colour and no underline until hover. A rule identifier is a
+     reference the eye should be able to skip, not a call to action. */
+  a.rule { color: var(--accent); text-decoration: none; }
+  a.rule:hover { text-decoration: underline; }
   .cites a { color: var(--accent); text-decoration: none; }
   .cites a:hover { text-decoration: underline; }
 

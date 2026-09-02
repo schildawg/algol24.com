@@ -89,6 +89,16 @@ begin
                 Found.Put(Path, Anchor(Path));
         end
 
+    // ⚠️ Rule identifiers share the map with case paths. The two cannot
+    // collide -- one is 'XXX-000' and the other holds a '/' -- and one map
+    // spares every function below a second parameter it would only pass on.
+    for var Raw in Lines do
+    begin
+        var Id := RuleId(Raw);
+
+        if Id <> '' then Found.Put(Id, Id);
+    end
+
     Exit Found;
 end
 
@@ -120,6 +130,64 @@ begin
     if Kind = 'refusal' then Exit 'refusals/' + Name;
 
     Exit '';
+end
+
+/// The rule a line defines, or '' when it defines none.
+///
+/// A rule opens its paragraph as `**[XXX-000]**`. One line of prose opens '**['
+/// while citing two rules mid-sentence, and the ']**' is what tells them apart.
+function RuleId (Line : String) : String;
+var
+    Shut := 0;
+
+begin
+    if not StartsWith(Line, '**[') then Exit '';
+
+    Shut := Pos(Line, ']**', 0);
+
+    if Shut < 0 then Exit '';
+
+    Exit Copy(Line, 3, Shut - 3);
+end
+
+/// Every `[XXX-000]` that names a rule this document defines, made a link.
+///
+/// Membership does the validating. A bracketed group is linked when the map
+/// holds it and left alone when it does not, so `[I]` in a subscript and
+/// `[ERROR]` in output need no rule of their own to be spared.
+///
+/// The rule's own paragraph links to itself, which is deliberate: the bold
+/// identifier at the head of a rule is the thing a reader wants the address of.
+function LinkRules (Text : String, Refs : Map) : String;
+var
+    B     := Buffer();
+    Start := 0;
+    At    := 0;
+
+begin
+    At := Pos(Text, '[', 0);
+
+    while At >= 0 do
+    begin
+        var Shut := Pos(Text, ']', At + 1);
+        var Id   := '';
+
+        if Shut >= 0 then Id := Copy(Text, At + 1, Shut - At - 1);
+
+        if (Id <> '') and Refs.Contains(Id) then
+        begin
+            B.Append(Copy(Text, Start, At - Start));
+            B.Append('<a class="rule" href="#' + Id + '">[' + Id + ']</a>');
+
+            Start := Shut + 1;
+            At    := Pos(Text, '[', Start);
+        end
+        else At := Pos(Text, '[', At + 1);
+    end
+
+    B.Append(Copy(Text, Start, Length(Text) - Start));
+
+    Exit B.Text;
 end
 
 /// Whether a line is a citation, whatever it happens to cite.
@@ -271,7 +339,7 @@ end
 /// Escaping happens once, first, over the whole line, so the text inside a span
 /// is escaped too. A line whose backticks do not pair has its last span closed
 /// here rather than left for the browser to guess at.
-function Inline (Text : String) : String;
+function Inline (Text : String, Refs : Map) : String;
 var
     Safe  := '';
     Spans := List();
@@ -311,7 +379,7 @@ begin
     end
     else Held.Append(Tail);
 
-    var Marked := Emphasis(Held.Text);
+    var Marked := LinkRules(Emphasis(Held.Text), Refs);
 
     At := Pos(Marked, Char(1), 0);
     Start := 0;
@@ -397,7 +465,7 @@ begin
 end
 
 /// One row of a table, its cells in the given tag.
-function Row (Line : String, Tag : String, Align : List) : String;
+function Row (Line : String, Tag : String, Align : List, Refs : Map) : String;
 var
     B := Buffer();
     I := 0;
@@ -411,7 +479,7 @@ begin
 
         if I < Align.Length then A := Align[I];
 
-        B.Append('<' + Tag + A + '>' + Inline(C) + '</' + Tag + '>');
+        B.Append('<' + Tag + A + '>' + Inline(C, Refs) + '</' + Tag + '>');
         I := I + 1;
     end
 
@@ -425,7 +493,7 @@ end
 /// A run whose second line is not a separator has no header, and every row of
 /// it is a body row. Nothing in this document is written that way, and the
 /// alternative is dropping the first row on the floor.
-function Table (Rows : List) : String;
+function Table (Rows : List, Refs : Map) : String;
 var
     B     := Buffer();
     Align := List();
@@ -435,13 +503,13 @@ begin
     if (Rows.Length >= 2) and IsSeparator(Rows[1]) then
     begin
         Align := Aligns(Rows[1]);
-        B.Append('<table><thead>' + Row(Rows[0], 'th', Align) + '</thead><tbody>');
+        B.Append('<table><thead>' + Row(Rows[0], 'th', Align, Refs) + '</thead><tbody>');
         First := 2;
     end
     else B.Append('<table><tbody>');
 
     for var I : Integer := First; I < Rows.Length; I := I + 1 do
-        B.Append(Row(Rows[I], 'td', Align));
+        B.Append(Row(Rows[I], 'td', Align, Refs));
 
     B.Append('</tbody></table>' + #10);
 
@@ -470,7 +538,7 @@ begin
 end
 
 /// A run of bullet items as a list.
-function Bullets (Items : List) : String;
+function Bullets (Items : List, Refs : Map) : String;
 var
     B := Buffer();
 
@@ -478,7 +546,7 @@ begin
     B.Append('<ul>');
 
     for var I in Items do
-        B.Append('<li>' + Inline(I) + '</li>');
+        B.Append('<li>' + Inline(I, Refs) + '</li>');
 
     B.Append('</ul>' + #10);
 
@@ -574,7 +642,7 @@ begin
 
             if (Rows.Length > 0) and (not Tabled) then
             begin
-                Out.Append(Table(Rows));
+                Out.Append(Table(Rows, Cases));
                 Rows := List();
             end
 
@@ -582,7 +650,7 @@ begin
             begin
                 if Item <> '' then Items.Add(Item);
 
-                Out.Append(Bullets(Items));
+                Out.Append(Bullets(Items, Cases));
 
                 Item  := '';
                 Items := List();
@@ -607,7 +675,12 @@ begin
             begin
                 if Para <> '' then
                 begin
-                    Out.Append('<p>' + Inline(Para) + '</p>' + #10);
+                    var Id := RuleId(Para);
+                    var At := '';
+
+                    if Id <> '' then At := ' id="' + Id + '"';
+
+                    Out.Append('<p' + At + '>' + Inline(Para, Cases) + '</p>' + #10);
                     Para := '';
                 end
 
@@ -638,7 +711,7 @@ begin
                     if Cases.Contains(Head) then
                         Id := ' class="case" id="' + Cases.Get(Head) + '"';
 
-                    Out.Append('<h' + Str(Level) + Id + '>' + Inline(Head)
+                    Out.Append('<h' + Str(Level) + Id + '>' + Inline(Head, Cases)
                              + '</h' + Str(Level) + '>' + #10);
                 end
                 else if Indented then
@@ -652,12 +725,20 @@ begin
         end
     end
 
-    if Para <> '' then Out.Append('<p>' + Inline(Para) + '</p>' + #10);
+    if Para <> '' then
+    begin
+        var Id := RuleId(Para);
+        var At := '';
+
+        if Id <> '' then At := ' id="' + Id + '"';
+
+        Out.Append('<p' + At + '>' + Inline(Para, Cases) + '</p>' + #10);
+    end
 
     if Item <> '' then Items.Add(Item);
-    if Items.Length > 0 then Out.Append(Bullets(Items));
+    if Items.Length > 0 then Out.Append(Bullets(Items, Cases));
 
-    if Rows.Length > 0 then Out.Append(Table(Rows));
+    if Rows.Length > 0 then Out.Append(Table(Rows, Cases));
 
     if Quote.Length > 0 then
         Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases, Words)
@@ -855,9 +936,37 @@ begin
 end
 
 /// Taken the other way round, the two opening asterisks become an empty italic.
+///
+/// The line also DEFINES the rule it opens with, so the paragraph takes its id
+/// and the identifier links to itself.
 test 'Emphasis Takes The Double Mark Before The Single';
 begin
-    AssertEqual('<p><strong>[RT-005]</strong> holds</p>' + #10, One('**[RT-005]** holds'));
+    AssertEqual('<p id="RT-005"><strong>'
+              + '<a class="rule" href="#RT-005">[RT-005]</a></strong> holds</p>' + #10,
+                One('**[RT-005]** holds'));
+end
+
+/// The identifier at the head of a rule is what a reader wants the address of.
+test 'Render Anchors A Rule On Its Own Paragraph';
+begin
+    var L := List();
+    L.Add('**[LEX-018]** An Integer is unbounded.');
+    L.Add('');
+    L.Add('See [LEX-018] for the reason.');
+
+    AssertEqual('<p id="LEX-018"><strong>'
+              + '<a class="rule" href="#LEX-018">[LEX-018]</a></strong> '
+              + 'An Integer is unbounded.</p>' + #10
+              + '<p>See <a class="rule" href="#LEX-018">[LEX-018]</a> for the reason.</p>' + #10,
+                Render(L));
+end
+
+/// Membership does the validating, so nothing else needs sparing by hand.
+test 'Render Leaves A Bracket That Names No Rule Alone';
+begin
+    AssertEqual('<p>See [LEX-018] for the reason.</p>' + #10,
+                One('See [LEX-018] for the reason.'));
+    AssertEqual('<p>a[I] and [ERROR]</p>' + #10, One('a[I] and [ERROR]'));
 end
 
 /// A glob or a footnote marker in prose must survive.

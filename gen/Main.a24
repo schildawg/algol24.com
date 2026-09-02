@@ -6,18 +6,50 @@
 /// ⚠️ This is a stub. It renders one page from one template, which is enough
 /// to prove the pipeline end to end -- seed builds with cc, algc compiles this,
 /// this writes the site, CI publishes it. The Markdown parser and the .a24
-/// highlighter that turn ALGOL-24.md into the reference are blocked on the
-/// string library; see WISHLIST-SITEGEN.md in the compiler repository.
+/// highlighter that turn spec/ALGOL-24.md into the reference are still to be
+/// written, but they are no longer blocked: v0.1.2 brought Pos a start index,
+/// case folding and the directory built-ins, and gen/Strings.a24 has the rest.
 uses Template;
+uses Strings;
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
-/// both ways: 'v0.1.1' in the hero, and 'algc 0.1.1' where the install section
+/// both ways: 'v0.1.2' in the hero, and 'algc 0.1.2' where the install section
 /// quotes what --version actually prints. One constant, and the template adds
 /// the 'v' where it wants one.
-const Release := '0.1.1';
+const Release := '0.1.2';
 const Status  := 'pre-1.0';
 const Tap     := 'schildawg/algol24';
 const Source  := 'https://github.com/schildawg/algol24';
+
+/// ⚠️ Read at build time, and pinned. This is the submodule's copy, so the
+/// figure counted from it describes the same compiler the rest of the page
+/// describes.
+const Spec := 'vendor/algol24/spec/ALGOL-24.md';
+
+/// The number of rules in the specification, counted rather than written down.
+///
+/// ⚠️ Derived on purpose. The figure went 280 -> 281 -> 283 inside a fortnight
+/// while three copies of it sat in prose here and in the compiler repository,
+/// which answered by deleting its copies outright. A rule is introduced as
+/// **[XXX-000]** at the start of a line; one line of prose opens '**[' while
+/// citing two rules mid-sentence, which is why ']**' has to be there too.
+function RuleCount () : String;
+var
+    Lines := List();
+    N     := 0;
+
+begin
+    Lines := Split(ReadFile(Spec), #10);
+
+    for var L in Lines do
+        if StartsWith(L, '**[') and Pos(L, ']**', 0) >= 0 then
+            N := N + 1;
+
+    Exit Str(N);
+end
+
+/// Counted once, because the walk is a few seconds interpreted.
+var Rules := '';
 
 /// Renders one template into one output file.
 procedure Render (From : String, Into : String);
@@ -27,10 +59,11 @@ var
 begin
     Page := ReadFile(From);
 
-    Page := Substitute(Page, '{{RELEASE}}', Release);
-    Page := Substitute(Page, '{{STATUS}}',  Status);
-    Page := Substitute(Page, '{{TAP}}',     Tap);
-    Page := Substitute(Page, '{{SOURCE}}',  Source);
+    Page := Replace(Page, '{{RELEASE}}', Release);
+    Page := Replace(Page, '{{STATUS}}',  Status);
+    Page := Replace(Page, '{{TAP}}',     Tap);
+    Page := Replace(Page, '{{SOURCE}}',  Source);
+    Page := Replace(Page, '{{RULES}}',   Rules);
 
     WriteFile(Into, Page);
 
@@ -38,6 +71,8 @@ begin
 end
 
 begin
+    Rules := RuleCount();
+
     WriteLn('generating:');
 
     Render('templates/index.html', 'site/index.html');

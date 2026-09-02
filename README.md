@@ -60,8 +60,10 @@ format of its own `WISHLIST.md`.
 ## Deployment
 
 GitHub Actions builds and publishes to GitHub Pages on every push to `main`.
+There is nothing to run by hand and no manual deploy step.
 
-The custom domain is a separate, deliberate step: add `algol24.com` under
-**Settings → Pages**, point the DNS at GitHub, and drop a `CNAME` file into
-`static/`. Until then the site publishes to the default `github.io` address and
-`algol24.com` keeps serving WordPress.
+**The custom domain is live.** `https://algol24.com/` serves the generated page,
+`www` redirects to the apex, and the certificate covers both. Pages is set to
+`build_type: workflow`, so the domain is held in the repository's Pages settings
+and there is **no `CNAME` file in this repository** — `static/` is empty, and
+adding one is not a step anybody needs to take.

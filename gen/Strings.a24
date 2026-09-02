@@ -1,0 +1,228 @@
+/// The text operations the generator needs and the language does not carry.
+///
+/// Every one of these is a single linear pass, which is a property of v0.1.2
+/// rather than of the code: `Pos` takes a start index now, so a scan resumes
+/// where the last match ended instead of copying the remainder of the string
+/// in order to search it again.
+unit Strings;
+
+/// Whether C is a space, tab, carriage return or newline.
+function IsSpace (C : Char) : Boolean;
+begin
+    Exit C = ' ' or C = #9 or C = #13 or C = #10;
+end
+
+/// Whether Text begins with Prefix.
+///
+/// An empty prefix begins everything, the empty string included.
+function StartsWith (Text : String, Prefix : String) : Boolean;
+var
+    N := 0;
+
+begin
+    N := Length (Prefix);
+
+    if N > Length (Text) then Exit False;
+
+    Exit Copy (Text, 0, N) = Prefix;
+end
+
+/// Text without leading or trailing white space.
+///
+/// Text that is entirely white space answers the empty string, which is why
+/// the two walks are bounded by one another rather than by the length: the
+/// first runs off the end of an all-space string and the second must not then
+/// walk back past it.
+function Trim (Text : String) : String;
+var
+    First := 0;
+    Last  := 0;
+
+begin
+    Last := Length (Text) - 1;
+
+    while First <= Last and IsSpace (Text[First]) do
+        First := First + 1;
+
+    while Last >= First and IsSpace (Text[Last]) do
+        Last := Last - 1;
+
+    Exit Copy (Text, First, Last - First + 1);
+end
+
+/// Every occurrence of From in Text, replaced by Into.
+///
+/// An empty From answers Text unchanged. `Pos` reports an empty part as found
+/// at zero rather than absent, so a loop that took it at its word would match
+/// forever without advancing.
+function Replace (Text : String, From : String, Into : String) : String;
+var
+    B     := Buffer();
+    Step  := 0;
+    Start := 0;
+    At    := 0;
+
+begin
+    Step := Length (From);
+
+    if Step = 0 then Exit Text;
+
+    At := Pos (Text, From, 0);
+
+    while At >= 0 do
+    begin
+        B.Append (Copy (Text, Start, At - Start));
+        B.Append (Into);
+
+        Start := At + Step;
+        At    := Pos (Text, From, Start);
+    end
+
+    B.Append (Copy (Text, Start, Length (Text) - Start));
+
+    Exit B.Text;
+end
+
+/// Text divided on each occurrence of Sep, as a List of String.
+///
+/// The result always holds one more element than there were separators, so a
+/// trailing separator yields a final empty string and the empty string yields
+/// a list of one. An empty Sep answers the whole of Text as a single element.
+function Split (Text : String, Sep : String) : List;
+var
+    Parts := List();
+    Step  := 0;
+    Start := 0;
+    At    := 0;
+
+begin
+    Step := Length (Sep);
+
+    if Step = 0 then
+    begin
+        Parts.Add (Text);
+        Exit Parts;
+    end
+
+    At := Pos (Text, Sep, 0);
+
+    while At >= 0 do
+    begin
+        Parts.Add (Copy (Text, Start, At - Start));
+
+        Start := At + Step;
+        At    := Pos (Text, Sep, Start);
+    end
+
+    Parts.Add (Copy (Text, Start, Length (Text) - Start));
+
+    Exit Parts;
+end
+
+test 'StartsWith Answers For A Prefix And A Non Prefix';
+begin
+    AssertTrue (StartsWith ('## Heading', '##'));
+    AssertTrue (not StartsWith ('# Heading', '##'));
+end
+
+test 'StartsWith Takes An Empty Prefix And A Prefix Longer Than The Text';
+begin
+    AssertTrue (StartsWith ('', ''));
+    AssertTrue (StartsWith ('abc', ''));
+    AssertTrue (not StartsWith ('ab', 'abc'));
+end
+
+test 'Trim Removes Space At Either End And Keeps The Middle';
+begin
+    AssertEqual ('a b', Trim ('   a b   '));
+    AssertEqual ('a b', Trim ('a b'));
+end
+
+test 'Trim Removes Tabs And Newlines As Well As Spaces';
+begin
+    AssertEqual (Str ('x'), Trim (#9 + #10 + 'x' + #13 + ' '));
+end
+
+test 'Trim Answers Empty For Empty And For All Space';
+begin
+    AssertEqual ('', Trim (''));
+    AssertEqual ('', Trim ('     '));
+end
+
+test 'Replace Rewrites Every Occurrence Including At Either End';
+begin
+    AssertEqual ('a-b-c', Replace ('a.b.c', '.', '-'));
+    AssertEqual ('!bc!', Replace ('abca', 'a', '!'));
+end
+
+test 'Replace Leaves Text Without The Part Alone';
+begin
+    AssertEqual ('abc', Replace ('abc', 'z', '!'));
+    AssertEqual ('', Replace ('', 'z', '!'));
+end
+
+test 'Replace Handles A Part Longer Than One Character';
+begin
+    AssertEqual ('a&amp;b', Replace ('a&b', '&', '&amp;'));
+    AssertEqual ('xy', Replace ('x{{GAP}}y', '{{GAP}}', ''));
+end
+
+/// An empty part would otherwise match at zero forever.
+test 'Replace Refuses To Loop On An Empty Part';
+begin
+    AssertEqual ('abc', Replace ('abc', '', '!'));
+end
+
+test 'Split Divides On A Separator';
+begin
+    var Parts := Split ('a,b,c', ',');
+
+    AssertEqual (3, Parts.Length);
+    AssertEqual (Str ('a'), Parts[0]);
+    AssertEqual (Str ('b'), Parts[1]);
+    AssertEqual (Str ('c'), Parts[2]);
+end
+
+test 'Split Keeps The Empty Field A Trailing Separator Leaves';
+begin
+    var Parts := Split ('a,', ',');
+
+    AssertEqual (2, Parts.Length);
+    AssertEqual (Str ('a'), Parts[0]);
+    AssertEqual ('', Parts[1]);
+end
+
+test 'Split Answers One Element When There Is No Separator In The Text';
+begin
+    var Parts := Split ('abc', ',');
+
+    AssertEqual (1, Parts.Length);
+    AssertEqual ('abc', Parts[0]);
+end
+
+test 'Split Answers One Empty Element For The Empty String';
+begin
+    var Parts := Split ('', ',');
+
+    AssertEqual (1, Parts.Length);
+    AssertEqual ('', Parts[0]);
+end
+
+test 'Split Answers The Whole Text For An Empty Separator';
+begin
+    var Parts := Split ('abc', '');
+
+    AssertEqual (1, Parts.Length);
+    AssertEqual ('abc', Parts[0]);
+end
+
+/// Lines are what the Markdown reader will actually ask for.
+test 'Split Divides A Document Into Its Lines';
+begin
+    var Parts := Split ('# Title' + #10 + '' + #10 + 'Body', #10);
+
+    AssertEqual (3, Parts.Length);
+    AssertEqual ('# Title', Parts[0]);
+    AssertEqual ('', Parts[1]);
+    AssertEqual ('Body', Parts[2]);
+end

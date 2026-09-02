@@ -264,26 +264,187 @@ begin
     Exit Out.Text;
 end
 
-/// The lines of a Markdown document rendered as HTML.
+/// Whether a line is a table's separator rather than a row of data.
 ///
-/// A block is closed by what follows it rather than by anything of its own, so
-/// there is a single place where an open paragraph or an open indented block is
-/// finished, and a second at the end for whatever the document left open. A
-/// blank line does not close an indented block: a run of them separated by
-/// blank lines is one block, which is what the citation lists under each rule
-/// depend on.
-function Render (Lines : List) : String;
+/// A dash is what decides it. A row of empty cells is written '| | |' and is
+/// nothing but pipes and spaces, and five of those appear in the document; a
+/// separator always carries at least one dash.
+function IsSeparator (Line : String) : Boolean;
 var
-    Out      := Buffer();
-    Para     := '';
-    InFence  := False;
-    InCode   := False;
-    Level    := 0;
-    Cases    := Map();
+    Seen := False;
 
 begin
-    Cases := Targets(Lines);
+    for var I : Integer := 0; I < Length(Line); I := I + 1 do
+    begin
+        var C := Line[I];
 
+        if C = '-' then Seen := True;
+        else if (C <> '|') and (C <> ':') and (C <> ' ') then Exit False;
+    end
+
+    Exit Seen;
+end
+
+/// The cells of a table row, trimmed.
+///
+/// Every one of the document's 169 rows both opens and closes with a pipe, so
+/// splitting on the pipe leaves an empty field at each end to drop.
+function Cells (Line : String) : List;
+var
+    Out   := List();
+    Inner := '';
+
+begin
+    Inner := Trim(Line);
+
+    if Length(Inner) < 2 then Exit Out;
+
+    Inner := Copy(Inner, 1, Length(Inner) - 2);
+
+    for var C in Split(Inner, '|') do
+        Out.Add(Trim(C));
+
+    Exit Out;
+end
+
+/// What each column of a separator asks for, as a style attribute or nothing.
+///
+/// Two tables use ':-:' to centre, and one of them is a six-column matrix that
+/// is genuinely hard to read ranged left.
+function Aligns (Sep : String) : List;
+var
+    Out := List();
+
+begin
+    for var C in Cells(Sep) do
+    begin
+        var Left  := StartsWith(C, ':');
+        var Right := (Length(C) > 0) and (C[Length(C) - 1] = ':');
+
+        if Left and Right then Out.Add(' style="text-align:center"');
+        else if Right then Out.Add(' style="text-align:right"');
+        else Out.Add('');
+    end
+
+    Exit Out;
+end
+
+/// One row of a table, its cells in the given tag.
+function Row (Line : String, Tag : String, Align : List) : String;
+var
+    B := Buffer();
+    I := 0;
+
+begin
+    B.Append('<tr>');
+
+    for var C in Cells(Line) do
+    begin
+        var A := '';
+
+        if I < Align.Length then A := Align[I];
+
+        B.Append('<' + Tag + A + '>' + Inline(C) + '</' + Tag + '>');
+        I := I + 1;
+    end
+
+    B.Append('</tr>');
+
+    Exit B.Text;
+end
+
+/// A run of pipe rows as a table.
+///
+/// A run whose second line is not a separator has no header, and every row of
+/// it is a body row. Nothing in this document is written that way, and the
+/// alternative is dropping the first row on the floor.
+function Table (Rows : List) : String;
+var
+    B     := Buffer();
+    Align := List();
+    First := 0;
+
+begin
+    if (Rows.Length >= 2) and IsSeparator(Rows[1]) then
+    begin
+        Align := Aligns(Rows[1]);
+        B.Append('<table><thead>' + Row(Rows[0], 'th', Align) + '</thead><tbody>');
+        First := 2;
+    end
+    else B.Append('<table><tbody>');
+
+    for var I : Integer := First; I < Rows.Length; I := I + 1 do
+        B.Append(Row(Rows[I], 'td', Align));
+
+    B.Append('</tbody></table>' + #10);
+
+    Exit B.Text;
+end
+
+/// The lines of a block quote with the marker taken off.
+///
+/// One space after the marker is part of the marker; any further indent is the
+/// quoted text's own.
+function Unquote (Lines : List) : List;
+var
+    Out := List();
+
+begin
+    for var L in Lines do
+    begin
+        var Rest := Copy(L, 1, Length(L) - 1);
+
+        if StartsWith(Rest, ' ') then Rest := Copy(Rest, 1, Length(Rest) - 1);
+
+        Out.Add(Rest);
+    end
+
+    Exit Out;
+end
+
+/// Whether a line is a horizontal rule.
+///
+/// Every one of the document's rules follows a blank line, so none of them is
+/// the underline of a setext heading and all can be read as rules.
+function IsRule (Line : String) : Boolean;
+var
+    T := '';
+
+begin
+    T := Trim(Line);
+
+    if Length(T) < 3 then Exit False;
+
+    for var I : Integer := 0; I < Length(T); I := I + 1 do
+        if T[I] <> '-' then Exit False;
+
+    Exit True;
+end
+
+/// The blocks of a Markdown document rendered as HTML.
+///
+/// A block is closed by what follows it rather than by anything of its own, so
+/// there is one place that finishes whatever is open and a second at the end for
+/// whatever the document left open. A blank line does not close an indented
+/// block: the citation lists under a rule are one block with blank lines in them.
+///
+/// This takes the case map rather than building it, so that a block quote can
+/// render its own contents down the same path without rebuilding the map or
+/// losing the targets that live outside the quote.
+///
+/// A table row and a quote marker are only recognised in the first column. An
+/// indented line is code, and a pipe inside code is a pipe.
+function Blocks (Lines : List, Cases : Map) : String;
+var
+    Out     := Buffer();
+    Para    := '';
+    Rows    := List();
+    Quote   := List();
+    InFence := False;
+    InCode  := False;
+    Level   := 0;
+
+begin
     for var Raw in Lines do
     begin
         if InFence then
@@ -300,6 +461,9 @@ begin
             var Blank    := Trim(Raw) = '';
             var Indented := StartsWith(Raw, '    ') and (not Blank);
             var Fenced   := StartsWith(Raw, '```');
+            var Tabled   := StartsWith(Raw, '|');
+            var Quoted   := StartsWith(Raw, '>');
+            var Ruled    := IsRule(Raw);
 
             Level := HeadingLevel(Raw);
 
@@ -309,7 +473,21 @@ begin
                 InCode := False;
             end
 
-            if (not Blank) and (not Indented) and (not Fenced) and (Level = 0) then
+            if (Rows.Length > 0) and (not Tabled) then
+            begin
+                Out.Append(Table(Rows));
+                Rows := List();
+            end
+
+            if (Quote.Length > 0) and (not Quoted) then
+            begin
+                Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases)
+                         + '</blockquote>' + #10);
+                Quote := List();
+            end
+
+            if (not Blank) and (not Indented) and (not Fenced) and (not Tabled)
+                           and (not Quoted) and (not Ruled) and (Level = 0) then
             begin
                 if Para = '' then Para := Trim(Raw);
                 else Para := Para + ' ' + Trim(Raw);
@@ -322,7 +500,10 @@ begin
                     Para := '';
                 end
 
-                if Fenced then
+                if Tabled then Rows.Add(Raw);
+                else if Quoted then Quote.Add(Raw);
+                else if Ruled then Out.Append('<hr>' + #10);
+                else if Fenced then
                 begin
                     Out.Append(OpenFence(Raw));
                     InFence := True;
@@ -365,10 +546,22 @@ begin
     end
 
     if Para <> '' then Out.Append('<p>' + Inline(Para) + '</p>' + #10);
+    if Rows.Length > 0 then Out.Append(Table(Rows));
+
+    if Quote.Length > 0 then
+        Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases)
+                 + '</blockquote>' + #10);
+
     if InCode  then Out.Append('</code></pre>' + #10);
     if InFence then Out.Append('</code></pre>' + #10);
 
     Exit Out.Text;
+end
+
+/// The lines of a Markdown document rendered as HTML.
+function Render (Lines : List) : String;
+begin
+    Exit Blocks(Lines, Targets(Lines));
 end
 
 /// Renders one line, which is all most of these tests need.
@@ -589,4 +782,104 @@ begin
     L.Add('    conformance  TBD');
 
     AssertEqual('<pre><code>conformance  TBD' + #10 + '</code></pre>' + #10, Render(L));
+end
+
+test 'IsSeparator Needs A Dash, Not Merely Pipes';
+begin
+    AssertTrue(IsSeparator('| --- | --- |'));
+    AssertTrue(IsSeparator('| --- | :-: |'));
+    AssertTrue(not IsSeparator('| | |'));
+    AssertTrue(not IsSeparator('| a | b |'));
+end
+
+test 'Cells Drops The Pipe At Either End And Trims';
+begin
+    var C := Cells('| a |  b  |');
+
+    AssertEqual(2, C.Length);
+    AssertEqual(Str('a'), C[0]);
+    AssertEqual(Str('b'), C[1]);
+end
+
+test 'Cells Keeps An Empty Cell';
+begin
+    var C := Cells('| | x |');
+
+    AssertEqual(2, C.Length);
+    AssertEqual('', C[0]);
+end
+
+test 'Render Builds A Table With A Head And A Body';
+begin
+    var L := List();
+    L.Add('| Name | Rule |');
+    L.Add('| --- | --- |');
+    L.Add('| `Pos` | [RT-005] |');
+
+    AssertEqual('<table><thead><tr><th>Name</th><th>Rule</th></tr></thead><tbody>'
+              + '<tr><td><code>Pos</code></td><td>[RT-005]</td></tr>'
+              + '</tbody></table>' + #10,
+                Render(L));
+end
+
+test 'Render Centres A Column The Separator Marks';
+begin
+    var L := List();
+    L.Add('| a | b |');
+    L.Add('| --- | :-: |');
+    L.Add('| 1 | 2 |');
+
+    AssertEqual('<table><thead><tr><th>a</th><th style="text-align:center">b</th></tr>'
+              + '</thead><tbody><tr><td>1</td>'
+              + '<td style="text-align:center">2</td></tr></tbody></table>' + #10,
+                Render(L));
+end
+
+test 'Render Closes A Table When The Rows Stop';
+begin
+    var L := List();
+    L.Add('| a |');
+    L.Add('| --- |');
+    L.Add('| 1 |');
+    L.Add('after');
+
+    AssertEqual('<table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr>'
+              + '</tbody></table>' + #10 + '<p>after</p>' + #10,
+                Render(L));
+end
+
+test 'Render Quotes A Block And Reads Markdown Inside It';
+begin
+    var L := List();
+    L.Add('> **bold** and `code`');
+
+    AssertEqual('<blockquote>' + #10
+              + '<p><strong>bold</strong> and <code>code</code></p>' + #10
+              + '</blockquote>' + #10,
+                Render(L));
+end
+
+test 'Render Joins The Lines Of A Quoted Paragraph';
+begin
+    var L := List();
+    L.Add('> one');
+    L.Add('> two');
+    L.Add('after');
+
+    AssertEqual('<blockquote>' + #10 + '<p>one two</p>' + #10 + '</blockquote>' + #10
+              + '<p>after</p>' + #10,
+                Render(L));
+end
+
+test 'Render Makes A Horizontal Rule';
+begin
+    AssertEqual('<hr>' + #10, One('---'));
+    AssertEqual('<hr>' + #10, One('-----'));
+end
+
+/// A pipe inside an indented block is a pipe, not a table.
+test 'Render Does Not Read A Table Out Of Indented Code';
+begin
+    AssertEqual('<pre><code>| not | a table |' + #10 + '</code></pre>' + #10,
+                One('    | not | a table |'));
 end

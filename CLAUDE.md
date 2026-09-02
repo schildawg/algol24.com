@@ -142,8 +142,22 @@ but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
 authority. The two now agree at 283. The other two figures in that row are still
-literals in the template: unit tests (`grep -c "^\s*test '" compiler/*.a24`, 224)
-and cases (`conformance` + `refusals` + `defects`, 241). Re-check both on a bump.
+literals in the template: unit tests (224) and cases (243). Re-check both on a
+bump — and the second one has a trap of its own.
+
+⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
+extracted from `spec/ALGOL-24.md` by the compiler repository's `./conform.sh`,
+which deletes and rewrites both directories every run; each case lives in the
+specification under the rule it demonstrates, so a case and its rule are the
+same text and cannot drift. `defects/` is the exception and is checked in.
+
+So **counting those directories without extracting first counts the previous
+release's corpus** — exactly the stale-`algc` shape, since a fresh `git checkout`
+of a new tag does not regenerate an ignored artifact. Bumping to v0.1.3 left
+v0.1.2's 241 files in place and the page duly said 241; the real figure is 243.
+Run `./conform.sh` in the submodule, then count. For the same reason, `spec.sh`
+reporting that a rule *cites a conformance program that does not exist* means
+the tree is stale, **not** that the case is missing — do not report it as one.
 
 ⚠️ **`ToUpper` and `ToLower` are ASCII only** — `[RT-025]` says so, and `café`
 folds to `CAFé`. Anchors derived from a non-Latin heading keep their case.

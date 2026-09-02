@@ -133,6 +133,22 @@ begin
     Exit Parts;
 end
 
+/// Text with the three characters HTML reserves replaced by entities.
+///
+/// The ampersand is replaced first. Doing it last would rewrite the ampersands
+/// that the other two had just introduced, and every entity on the page would
+/// arrive doubly escaped.
+function Escape (Text : String) : String;
+var
+    S := '';
+
+begin
+    S := Replace(Text, '&', '&amp;');
+    S := Replace(S, '<', '&lt;');
+
+    Exit Replace(S, '>', '&gt;');
+end
+
 test 'StartsWith Answers For A Prefix And A Non Prefix';
 begin
     AssertTrue (StartsWith ('## Heading', '##'));
@@ -239,4 +255,10 @@ begin
     AssertEqual ('# Title', Parts[0]);
     AssertEqual ('', Parts[1]);
     AssertEqual ('Body', Parts[2]);
+end
+
+test 'Escape Replaces The Three Reserved Characters';
+begin
+    AssertEqual('&lt;pre&gt;', Escape('<pre>'));
+    AssertEqual('&amp;amp;', Escape('&amp;'));
 end

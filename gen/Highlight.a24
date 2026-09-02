@@ -1,0 +1,312 @@
+/// Syntax highlighting for Algol-24 source.
+///
+/// The classes are the ones the site already uses on its front page — `kw`,
+/// `str`, `com`, `num` and `fn` — so a sample in the reference and a sample in
+/// the hero are coloured by the same palette.
+///
+/// A line at a time, and no state carried between lines. Every fenced sample in
+/// the specification closes what it opens, and a highlighter that tracked an
+/// unterminated string across lines would colour the remainder of a case on the
+/// strength of one apostrophe in a comment.
+unit Highlight;
+
+uses Strings;
+
+/// Whether C is an ASCII digit.
+function IsDigit (C : Char) : Boolean;
+var
+    O := 0;
+
+begin
+    O := Ord(C);
+
+    Exit (O >= 48) and (O <= 57);
+end
+
+/// Whether C may open an identifier.
+///
+/// Anything above 127 counts. The scanner admits every such byte without
+/// classifying it, so `café` and `日本` are names, and a highlighter that
+/// insisted on ASCII would break them into pieces.
+function IsNameStart (C : Char) : Boolean;
+var
+    O := 0;
+
+begin
+    O := Ord(C);
+
+    if (O >= 97) and (O <= 122) then Exit True;
+    if (O >= 65) and (O <= 90) then Exit True;
+    if O = 95 then Exit True;
+
+    Exit O > 127;
+end
+
+/// Whether C may continue an identifier.
+///
+/// `?` and `!` are identifier characters, so `Gate?` is one word rather than a
+/// name and a punctuation mark.
+function IsNamePart (C : Char) : Boolean;
+var
+    O := 0;
+
+begin
+    O := Ord(C);
+
+    if IsNameStart(C) then Exit True;
+    if IsDigit(C) then Exit True;
+
+    Exit (O = 63) or (O = 33);
+end
+
+/// The language's keywords, read out of the compiler's own scanner.
+///
+/// Read rather than copied. `Scanner.a24` declares them as a map literal of
+/// `'name':TOKEN_NAME` pairs, and taking the list from the pinned compiler means
+/// the page cannot fall behind the language it documents.
+///
+/// It also gets the absences right without being told: `unit`, `test` and `on`
+/// are context-sensitive identifiers rather than keywords and are not in the
+/// table, so they are not coloured as keywords here either.
+///
+/// A Map with dummy values rather than a Set, which under this compiler is an
+/// ObjSeq whose Add is a linear Contains.
+function Keywords (Lines : List) : Map;
+var
+    Found := Map();
+
+begin
+    for var L in Lines do
+    begin
+        var At := Pos(L, ':TOKEN_', 0);
+
+        while At >= 0 do
+        begin
+            var Close := At - 1;
+
+            if (Close > 0) and (Ord(L[Close]) = 39) then
+            begin
+                var Open := Close - 1;
+
+                while (Open >= 0) and (Ord(L[Open]) <> 39) do
+                    Open := Open - 1;
+
+                if Open >= 0 then Found.Put(Copy(L, Open + 1, Close - Open - 1), True);
+            end
+
+            At := Pos(L, ':TOKEN_', At + 7);
+        end
+    end
+
+    Exit Found;
+end
+
+/// One line of Algol-24 source, marked up.
+///
+/// Comments and strings are recognised before anything else, so a keyword
+/// inside either is text. A string closes on a quote that is not doubled: `''`
+/// is one apostrophe and does not end the literal.
+///
+/// A name is a keyword when the table holds its lower case — identifiers fold
+/// case, so `BEGIN` and `begin` are one word — and otherwise is a call when the
+/// next thing that is not a space is an opening bracket. That last is a guess
+/// rather than a parse, and it is the same guess the hand-written samples on the
+/// front page make.
+function Source (Text : String, Words : Map) : String;
+var
+    B := Buffer();
+    I := 0;
+    N := 0;
+
+begin
+    N := Length(Text);
+
+    while I < N do
+    begin
+        var C := Ord(Text[I]);
+
+        if (C = 47) and (I + 1 < N) and (Ord(Text[I + 1]) = 47) then
+        begin
+            B.Append('<span class="com">' + Escape(Copy(Text, I, N - I)) + '</span>');
+            I := N;
+        end
+        else if C = 39 then
+        begin
+            var J    := I + 1;
+            var Shut := False;
+
+            while (J < N) and (not Shut) do
+                if Ord(Text[J]) <> 39 then J := J + 1;
+                else if (J + 1 < N) and (Ord(Text[J + 1]) = 39) then J := J + 2;
+                else
+                begin
+                    J    := J + 1;
+                    Shut := True;
+                end
+
+            B.Append('<span class="str">' + Escape(Copy(Text, I, J - I)) + '</span>');
+            I := J;
+        end
+        else if (C = 35) and (I + 1 < N) and IsDigit(Text[I + 1]) then
+        begin
+            var J := I + 1;
+
+            while (J < N) and IsDigit(Text[J]) do
+                J := J + 1;
+
+            B.Append('<span class="num">' + Escape(Copy(Text, I, J - I)) + '</span>');
+            I := J;
+        end
+        else if IsDigit(Text[I]) then
+        begin
+            var J := I;
+
+            // A dot belongs to the number only when a digit follows it, or the
+            // range in 'for I := 1 .. 9' would be swallowed whole.
+            while (J < N) and (IsDigit(Text[J]) or IsNameStart(Text[J])
+                            or ((Ord(Text[J]) = 46) and (J + 1 < N) and IsDigit(Text[J + 1]))) do
+                J := J + 1;
+
+            B.Append('<span class="num">' + Escape(Copy(Text, I, J - I)) + '</span>');
+            I := J;
+        end
+        else if IsNameStart(Text[I]) then
+        begin
+            var J := I;
+
+            while (J < N) and IsNamePart(Text[J]) do
+                J := J + 1;
+
+            var Word := Copy(Text, I, J - I);
+
+            if Words.Contains(ToLower(Word)) then
+                B.Append('<span class="kw">' + Escape(Word) + '</span>');
+            else
+            begin
+                var K := J;
+
+                while (K < N) and (Ord(Text[K]) = 32) do
+                    K := K + 1;
+
+                if (K < N) and (Ord(Text[K]) = 40) then
+                    B.Append('<span class="fn">' + Escape(Word) + '</span>');
+                else B.Append(Escape(Word));
+            end
+
+            I := J;
+        end
+        else
+        begin
+            B.Append(Escape(Str(Text[I])));
+            I := I + 1;
+        end
+    end
+
+    Exit B.Text;
+end
+
+/// A console session, marked up.
+///
+/// The command is what the reader types and the rest is what the machine
+/// answers, so the two are told apart the way the front page tells them apart.
+function Console (Text : String) : String;
+begin
+    if StartsWith(Text, '$ ') then Exit Escape(Text);
+
+    Exit '<span class="out">' + Escape(Text) + '</span>';
+end
+
+/// Two keywords, for tests that do not want the whole table.
+function Two () : Map;
+var
+    W := Map();
+
+begin
+    W.Put('begin', True);
+    W.Put('var', True);
+
+    Exit W;
+end
+
+test 'Keywords Reads The Scanner Table And Skips What Is Not In It';
+begin
+    var L := List();
+    L.Add('    ''and'':TOKEN_AND, ''as'':TOKEN_AS, ''begin'':TOKEN_BEGIN,');
+    L.Add('    ''while'':TOKEN_WHILE];');
+
+    var W := Keywords(L);
+
+    AssertTrue(W.Contains('and'));
+    AssertTrue(W.Contains('as'));
+    AssertTrue(W.Contains('begin'));
+    AssertTrue(W.Contains('while'));
+
+    // context-sensitive identifiers are not in the table and must not be added
+    AssertTrue(not W.Contains('unit'));
+    AssertTrue(not W.Contains('test'));
+end
+
+test 'Source Colours A Keyword And Folds Its Case';
+begin
+    AssertEqual('<span class="kw">begin</span>', Source('begin', Two()));
+    AssertEqual('<span class="kw">BEGIN</span>', Source('BEGIN', Two()));
+end
+
+test 'Source Leaves A Name That Is Not A Keyword Alone';
+begin
+    AssertEqual('Total', Source('Total', Two()));
+end
+
+test 'Source Reads A Name Before A Bracket As A Call';
+begin
+    AssertEqual('<span class="fn">WriteLn</span> (x)', Source('WriteLn (x)', Two()));
+end
+
+test 'Source Colours A String And Keeps A Doubled Quote Inside It';
+begin
+    AssertEqual('<span class="str">&#39;it&#39;&#39;s&#39;</span>',
+                Replace(Source('''it''''s''', Two()), '''', '&#39;'));
+end
+
+/// A keyword inside a literal is text.
+test 'Source Does Not Colour A Keyword Inside A String';
+begin
+    AssertEqual('<span class="str">' + Str('''') + 'begin' + Str('''') + '</span>',
+                Source('''begin''', Two()));
+end
+
+test 'Source Colours A Comment To The End Of The Line';
+begin
+    AssertEqual('<span class="com">// begin var</span>', Source('// begin var', Two()));
+end
+
+test 'Source Colours A Number And A Character Code';
+begin
+    AssertEqual('<span class="num">42</span>', Source('42', Two()));
+    AssertEqual('<span class="num">#10</span>', Source('#10', Two()));
+    AssertEqual('<span class="num">0x1F</span>', Source('0x1F', Two()));
+end
+
+/// A dot joins a number only when a digit follows it.
+test 'Source Does Not Swallow A Range Into A Number';
+begin
+    AssertEqual('<span class="num">1</span>..<span class="num">9</span>',
+                Source('1..9', Two()));
+end
+
+test 'Source Escapes What HTML Reserves';
+begin
+    AssertEqual('a &lt; b', Source('a < b', Two()));
+end
+
+/// The scanner admits every byte above 127 without classifying it.
+test 'Source Keeps A Unicode Name In One Piece';
+begin
+    AssertEqual('<span class="fn">café</span> ()', Source('café ()', Two()));
+end
+
+test 'Console Tells A Command From What It Answers';
+begin
+    AssertEqual('$ algc x.a24', Console('$ algc x.a24'));
+    AssertEqual('<span class="out">hello</span>', Console('hello'));
+end

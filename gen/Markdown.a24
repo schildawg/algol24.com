@@ -16,22 +16,7 @@
 unit Markdown;
 
 uses Strings;
-
-/// Text with the three characters HTML reserves replaced by entities.
-///
-/// The ampersand is replaced first. Doing it last would rewrite the ampersands
-/// that the other two had just introduced, and every entity on the page would
-/// arrive doubly escaped.
-function Escape (Text : String) : String;
-var
-    S := '';
-
-begin
-    S := Replace(Text, '&', '&amp;');
-    S := Replace(S, '<', '&lt;');
-
-    Exit Replace(S, '>', '&gt;');
-end
+uses Highlight;
 
 /// The number of '#' a line opens with, or zero when it is not a heading.
 ///
@@ -457,7 +442,7 @@ end
 ///
 /// A table row and a quote marker are only recognised in the first column. An
 /// indented line is code, and a pipe inside code is a pipe.
-function Blocks (Lines : List, Cases : Map) : String;
+function Blocks (Lines : List, Cases : Map, Words : Map) : String;
 var
     Out     := Buffer();
     Para    := '';
@@ -468,6 +453,7 @@ var
     InFence := False;
     InCode  := False;
     Level   := 0;
+    Lang    := '';
 
 begin
     for var Raw in Lines do
@@ -479,6 +465,8 @@ begin
                 Out.Append('</code></pre>' + #10);
                 InFence := False;
             end
+            else if Lang = 'algol24' then Out.Append(Source(Raw, Words) + #10);
+            else if Lang = 'console' then Out.Append(Console(Raw) + #10);
             else Out.Append(Escape(Raw) + #10);
         end
         else
@@ -524,7 +512,7 @@ begin
 
             if (Quote.Length > 0) and (not Quoted) then
             begin
-                Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases)
+                Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases, Words)
                          + '</blockquote>' + #10);
                 Quote := List();
             end
@@ -557,6 +545,7 @@ begin
                 else if Fenced then
                 begin
                     Out.Append(OpenFence(Raw));
+                    Lang    := Trim(Copy(Raw, 3, Length(Raw) - 3));
                     InFence := True;
                 end
                 else if Level > 0 then
@@ -609,7 +598,7 @@ begin
     if Rows.Length > 0 then Out.Append(Table(Rows));
 
     if Quote.Length > 0 then
-        Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases)
+        Out.Append('<blockquote>' + #10 + Blocks(Unquote(Quote), Cases, Words)
                  + '</blockquote>' + #10);
 
     if InCode  then Out.Append('</code></pre>' + #10);
@@ -618,10 +607,21 @@ begin
     Exit Out.Text;
 end
 
-/// The lines of a Markdown document rendered as HTML.
+/// The lines of a Markdown document rendered as HTML, with source highlighted
+/// against the given keyword table.
+function RenderWith (Lines : List, Words : Map) : String;
+begin
+    Exit Blocks(Lines, Targets(Lines), Words);
+end
+
+/// The same, with nothing treated as a keyword.
+///
+/// The table is read from the compiler at build time, so the tests do without
+/// it: what they check is the structure the reader produces, not the colour of
+/// a word inside a fence.
 function Render (Lines : List) : String;
 begin
-    Exit Blocks(Lines, Targets(Lines));
+    Exit RenderWith(Lines, Map());
 end
 
 /// Renders one line, which is all most of these tests need.
@@ -633,12 +633,6 @@ begin
     L.Add(Line);
 
     Exit Render(L);
-end
-
-test 'Escape Replaces The Three Reserved Characters';
-begin
-    AssertEqual('&lt;pre&gt;', Escape('<pre>'));
-    AssertEqual('&amp;amp;', Escape('&amp;'));
 end
 
 test 'HeadingLevel Counts Hashes And Requires A Space';

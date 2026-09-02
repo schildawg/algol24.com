@@ -39,7 +39,7 @@ var
     N     := 0;
 
 begin
-    Lines := Split(ReadFile(Spec), #10);
+    Lines := ReadLines(Spec);
 
     for var L in Lines do
         if StartsWith(L, '**[') and Pos(L, ']**', 0) >= 0 then
@@ -48,7 +48,7 @@ begin
     Exit Str(N);
 end
 
-/// Counted once, because the walk is a few seconds interpreted.
+/// Counted once, though it is cheap now that the walk reads lines directly.
 var Rules := '';
 
 /// Renders one template into one output file.

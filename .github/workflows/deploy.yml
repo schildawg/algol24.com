@@ -44,9 +44,14 @@ jobs:
         # ⚠️ mkdir first: Algol-24 cannot create a directory, so the output tree
         # has to exist before the generator runs. This works only while the tree
         # is known in advance -- see WISHLIST-SITEGEN.md.
+        #
+        # The generator is compiled and then run, which is what build.sh does.
+        # Emitted fresh each time because the directory is built with 'cc *.c'.
         run: |
-          mkdir -p site
-          vendor/algol24/bootstrap/algc gen/Main.a24
+          mkdir -p site build
+          vendor/algol24/bootstrap/algc --compile --out=build gen/Main.a24
+          cc -std=c11 -O2 -o build/generate build/*.c
+          ./build/generate
 
       - name: Add static assets
         run: |

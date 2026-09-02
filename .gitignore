@@ -1,6 +1,9 @@
 # the generated site
 site/
 
+# the emitted C and the compiled generator
+build/
+
 # scratch from brand/build.sh
 brand/tmp/
 

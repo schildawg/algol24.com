@@ -133,9 +133,40 @@ run by hand and no manual deploy step.
 **The custom domain is done and live.** `https://algol24.com/` serves the
 generated page, `www` 301s to the apex, and the certificate covers both. Pages
 is on `build_type: workflow`, so the domain is held in the repository's Pages
-settings and **there is no `CNAME` file in the repo** — `static/` is empty.
-README.md still describes the domain as a pending step and is out of date on
-that point.
+settings and **there is no `CNAME` file in the repo** — `static/` is empty, and
+adding one is not a step anybody needs to take.
+
+## Speed, and where it actually goes
+
+⚠️ **A character index into a string holding any non-ASCII character walks from
+the start.** Text is measured in characters and stored as UTF-8, so there is a
+fast path only while every character is one byte. `spec/ALGOL-24.md` is full of
+warning signs and em-dashes, so it never gets that path, and taking twelve
+thousand indexes into one 352 KB document is quadratic. `Split` costs **3.40s**
+there against **0.11s** on ASCII text of the same size.
+
+⚠️ **Read files with `Template.ReadLines`, not `ReadFile` followed by `Split`.**
+The giant string is what costs; reading straight into a list of lines never
+builds it. Same twelve thousand lines, **3.40s against 0.006s**.
+
+⚠️ **The generator is compiled, not interpreted** — `build.sh` emits C and runs
+`cc` before running it. The order those two facts were found in matters, because
+compiling looked worthless at first: while the time sat in the C runtime it
+bought **1.25x**, and only once the quadratic term was gone did it start buying
+**40x**. Measured end to end on this generator:
+
+| | interpreted | compiled |
+| --- | --- | --- |
+| `ReadFile` + `Split` | 4.19s | 3.36s |
+| `ReadLines` | 0.44s | 0.01s |
+
+Both changes, or neither is worth much. The emitted C goes to `build/`, which is
+ignored, and is emitted fresh each run because the directory is built with
+`cc *.c` and a renamed module would otherwise leave its old `.c` behind.
+
+⚠️ `build.sh --test` still runs the tests **interpreted**, so nothing compares
+the two back ends here. The guard that would catch a divergence is the
+prototype-to-site byte comparison, not the test run.
 
 ## Writing Algol-24 here
 

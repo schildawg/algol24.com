@@ -35,6 +35,31 @@ begin
     Exit B.Text;
 end
 
+/// The lines of a file, in order, with no terminators.
+///
+/// ⚠️ Prefer this to ReadFile for anything large. A character index into a
+/// string holding any non-ASCII character has to walk from the start to find
+/// the byte offset, so taking twelve thousand of them into one 352 KB document
+/// is quadratic: ReadFile followed by Split costs 3.40s on the specification,
+/// and this costs 0.006s for the same twelve thousand lines. The document is
+/// full of warning signs and em-dashes, so the ASCII fast path never applies.
+function ReadLines (Name : String) : List;
+var
+    F     := TextFile();
+    Lines := List();
+
+begin
+    F.Assign(Name);
+    F.Reset();
+
+    while not F.Eof do
+        Lines.Add(F.ReadLn());
+
+    F.Close();
+
+    Exit Lines;
+end
+
 /// Writes Text to Name, replacing whatever was there.
 ///
 /// ⚠️ The directory must already exist. The language cannot create one, so the

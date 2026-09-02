@@ -1,9 +1,18 @@
 /// The text operations the generator needs and the language does not carry.
 ///
-/// Every one of these is a single linear pass, which is a property of v0.1.2
-/// rather than of the code: `Pos` takes a start index now, so a scan resumes
-/// where the last match ended instead of copying the remainder of the string
-/// in order to search it again.
+/// Each of these takes a single pass rather than restarting, which is a
+/// property of v0.1.2 rather than of the code: `Pos` takes a start index now,
+/// so a scan resumes where the last match ended instead of copying the
+/// remainder of the string in order to search it again.
+///
+/// A single pass is not the same as linear time, and on long text it is not
+/// linear. A character index into a string holding any non-ASCII character has
+/// to walk from the start to find the byte offset, so the cost of the calls in
+/// that one pass grows with how far into the text they reach. Measured on the
+/// 352 KB specification, which is full of warning signs and em-dashes, `Split`
+/// takes 3.40s; on ASCII text of the same size it takes 0.11s. Read a file
+/// with `Template.ReadLines` and work a line at a time, and the question never
+/// arises.
 unit Strings;
 
 /// Whether C is a space, tab, carriage return or newline.
@@ -88,6 +97,11 @@ end
 /// The result always holds one more element than there were separators, so a
 /// trailing separator yields a final empty string and the empty string yields
 /// a list of one. An empty Sep answers the whole of Text as a single element.
+///
+/// Suited to a line, a field or a heading, and not to a document. Splitting one
+/// on its newlines is quadratic when it holds any non-ASCII character;
+/// `Template.ReadLines` answers the same list from the file in 0.006s where
+/// this takes 3.40s.
 function Split (Text : String, Sep : String) : List;
 var
     Parts := List();

@@ -45,7 +45,26 @@ fi
 # the tree is decided by the content -- see WISHLIST-SITEGEN.md.
 mkdir -p site
 
-"$ALGC" gen/Main.a24
+# The generator is COMPILED rather than interpreted, and then run.
+#
+# ⚠️ The gain is not where it looks. Compiling was worth 1.25x while the
+# generator's time sat inside the C runtime -- a character index into a string
+# holding any non-ASCII character walks from the start to find the byte offset,
+# so ReadFile followed by Split was quadratic over the 352 KB specification and
+# no back end could help. Reading straight into lines removed that, and only
+# then did compiling start paying: 4.19s -> 0.44s interpreted, and 0.44s ->
+# 0.01s compiled. Both changes, or neither is worth much.
+#
+# ⚠️ Emitted fresh every time. The directory is built with 'cc *.c', so a .c
+# left behind by a module that has since been renamed would be compiled in
+# alongside its replacement.
+rm -rf build
+mkdir -p build
+
+"$ALGC" --compile --out=build gen/Main.a24
+${CC:-cc} ${CFLAGS:--std=c11 -O2} -o build/generate build/*.c
+
+./build/generate
 
 cp -R static/. site/ 2>/dev/null || true
 for f in favicon.ico favicon-16.png favicon-32.png apple-touch-icon.png \

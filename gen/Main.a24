@@ -3,22 +3,21 @@
 /// Written in Algol-24 and compiled by algc, which is the point: the language
 /// builds its own front door the way the compiler already builds itself.
 ///
-/// ⚠️ This is a stub. It renders one page from one template, which is enough
-/// to prove the pipeline end to end -- seed builds with cc, algc compiles this,
-/// this writes the site, CI publishes it. The Markdown parser and the .a24
-/// highlighter that turn spec/ALGOL-24.md into the reference are still to be
-/// written, but they are no longer blocked: v0.1.2 brought Pos a start index,
-/// case folding and the directory built-ins, and gen/Strings.a24 has the rest.
+/// Two pages: the home page from templates/index.html, and the language
+/// reference read out of the pinned spec/ALGOL-24.md by gen/Markdown.a24 and
+/// coloured by gen/Highlight.a24, whose keywords come from the pinned scanner.
+/// So the rules the reference states and the words it colours both describe the
+/// compiler that generated the page.
 uses Template;
 uses Strings;
 uses Markdown;
 uses Highlight;
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
-/// both ways: 'v0.1.2' in the hero, and 'algc 0.1.2' where the install section
+/// both ways: 'v0.1.3' in the hero, and 'algc 0.1.3' where the install section
 /// quotes what --version actually prints. One constant, and the template adds
 /// the 'v' where it wants one.
-const Release := '0.1.2';
+const Release := '0.1.3';
 const Status  := 'pre-1.0';
 const Tap     := 'schildawg/algol24';
 /// ⚠️ Repo, not Source. 'uses' brings a unit's names in unqualified, and
@@ -58,6 +57,13 @@ const Scanner   := 'vendor/algol24/compiler/Scanner.a24';
 /// which answered by deleting its copies outright. A rule is introduced as
 /// **[XXX-000]** at the start of a line; one line of prose opens '**[' while
 /// citing two rules mid-sentence, which is why ']**' has to be there too.
+///
+/// ⚠️ Number 000 is RESERVED in every namespace and is never a real rule. It
+/// is the format illustration in §1.3 -- [SRC-000], "An example rule" -- and it
+/// is written exactly like the real ones, so counting lines alone counts it.
+/// This said 283 at v0.1.2 when the specification held 282, and nothing
+/// disagreed until v0.1.3 brought spec/spec.sh, which excludes 000 and is the
+/// authority. Skipping it here is what makes the two agree.
 function RuleCount () : String;
 var
     Lines := List();
@@ -67,7 +73,8 @@ begin
     Lines := ReadLines(Spec);
 
     for var L in Lines do
-        if StartsWith(L, '**[') and Pos(L, ']**', 0) >= 0 then
+        if StartsWith(L, '**[') and Pos(L, ']**', 0) >= 0
+           and Pos(L, '-000]**', 0) < 0 then
             N := N + 1;
 
     Exit Str(N);

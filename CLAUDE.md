@@ -77,7 +77,7 @@ Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
-`v0.1.2`. An earlier pin, `01b2778`, was rewritten out of the compiler
+`v0.1.3`. An earlier pin, `01b2778`, was rewritten out of the compiler
 repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -126,15 +126,24 @@ Three more things that are only visible by reading several files at once:
 
 ## The state of it
 
-The generator is a **stub**: one template, one page, `{{PLACEHOLDER}}`
-substitution. That is enough to prove the whole chain — `cc` → seed → `algc` →
-generator → site → Pages — and that chain works today.
+The generator builds **two pages**: the home page by placeholder substitution,
+and the language reference by reading the pinned `spec/ALGOL-24.md` through
+`gen/Markdown.a24` and colouring it with `gen/Highlight.a24`, whose keyword set
+is read out of the pinned `Scanner.a24`. The whole chain — `cc` → seed → `algc`
+→ generator → site → Pages — works today.
 
-Markdown parsing and `.a24` syntax highlighting are **no longer blocked**.
-v0.1.2 brought `Pos` a start index, `ToUpper`/`ToLower`, and `GetDir`, `ChDir`,
-`MkDir` and `RmDir`; `gen/Strings.a24` builds `Trim`, `StartsWith`, `Replace`
-and `Split` on top of them, each a single linear pass. What remains is the
-parser and the highlighter, which are work rather than a dependency.
+The Markdown reader was unblocked by v0.1.2's `Pos` start index,
+`ToUpper`/`ToLower` and the directory built-ins; `gen/Strings.a24` builds
+`Trim`, `StartsWith`, `Replace` and `Split` on top of them.
+
+⚠️ **Every figure on the page is derived, and the one that was written down was
+wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec —
+but **000 is reserved in every namespace** for the format illustration in §1.3
+and is never a real rule, so the count was one too high from the start. Nothing
+disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
+authority. The two now agree at 283. The other two figures in that row are still
+literals in the template: unit tests (`grep -c "^\s*test '" compiler/*.a24`, 224)
+and cases (`conformance` + `refusals` + `defects`, 241). Re-check both on a bump.
 
 ⚠️ **`ToUpper` and `ToLower` are ASCII only** — `[RT-025]` says so, and `café`
 folds to `CAFé`. Anchors derived from a non-Latin heading keep their case.
@@ -217,6 +226,13 @@ Beyond the language reference, what bites when writing the generator:
   builtin call on a String.
 - String indices are **0-based**. `Pos` returns `-1` when not found.
 - A one-character literal is a `Char`, never a `String`.
+- ⚠️ **`/` is real division and always answers a `Double`** — `7 / 2` is 3.5 and
+  even `4 / 2` is `2.0`. `div` and `mod` are the Integer pair, they refuse a
+  `Double` rather than truncating it, and they are the only operators that raise
+  on a zero divisor (`7 / 0` is `Infinity`). There is no `Mod` built-in any more.
+  This changed in v0.1.3 and is the only release so far that alters what an
+  existing program means. The generator divides nowhere, so nothing here needed
+  migrating — but anything written from memory of the old rule will be wrong.
 - Build strings with a `Buffer`, never `+` in a loop — a page is tens of
   kilobytes and concatenation is the cliff `Buffer` exists to answer.
 - ⚠️ **Never use a `Set` for membership. Use a `Map` with dummy values.** Under

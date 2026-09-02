@@ -228,6 +228,16 @@
     padding: 16px 18px;
     margin: 0;
     overflow-x: auto;
+    /* ⚠️ max-width is what makes overflow-x work, and it is not redundant.
+       A pre never wraps, so its min-content width IS its longest line — and
+       the hero is a grid with justify-items:center, which sizes its items to
+       fit-content and therefore to that same longest line. Without the clamp
+       the block simply grows past the viewport, and because it is centred it
+       is cut off at BOTH ends: the right runs off screen and the left loses
+       the start of every line. Only with a max-width does the scrollbar
+       appear instead. Seen on a phone the day the hero sample went from a
+       32-character Hello World to the Doughnut's 66. */
+    max-width: 100%;
     font-family: var(--mono);
     font-size: 13.5px;
     line-height: 1.7;

@@ -77,7 +77,7 @@ Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
-`v0.1.3`. An earlier pin, `01b2778`, was rewritten out of the compiler
+`v0.1.4`. An earlier pin, `01b2778`, was rewritten out of the compiler
 repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -141,9 +141,15 @@ wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec �
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 283. The other two figures in that row are still
-literals in the template: unit tests (224) and cases (243). Re-check both on a
+authority. The two now agree at 284. The other two figures in that row are still
+literals in the template: unit tests (232) and cases (245). Re-check both on a
 bump — and the second one has a trap of its own.
+
+The unit tests are what `./test.sh` prints in the compiler repository (*All 232
+tests passed*). **Cases is the whole corpus, defects included** — `conformance/`
+plus `refusals/` plus the checked-in `defects/`, which is exactly the figure
+`./conform.sh` reports as *the language: 245 passed*. Read it off that line
+rather than counting two directories and forgetting the third.
 
 ⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
 extracted from `spec/ALGOL-24.md` by the compiler repository's `./conform.sh`,
@@ -244,9 +250,16 @@ Beyond the language reference, what bites when writing the generator:
   even `4 / 2` is `2.0`. `div` and `mod` are the Integer pair, they refuse a
   `Double` rather than truncating it, and they are the only operators that raise
   on a zero divisor (`7 / 0` is `Infinity`). There is no `Mod` built-in any more.
-  This changed in v0.1.3 and is the only release so far that alters what an
-  existing program means. The generator divides nowhere, so nothing here needed
+  This changed in v0.1.3, still the only release that alters what a *working*
+  program means. The generator divides nowhere, so nothing here needed
   migrating — but anything written from memory of the old rule will be wrong.
+- ⚠️ **Declaring a built-in's name takes over only the argument counts you
+  declare** — `[RT-027]`, new in v0.1.4. The built-in keeps every other count,
+  so a `WriteLn (A, B, C)` of your own leaves `WriteLn ('x')` still reaching
+  standard output, and the mismatch shows up at run time rather than at the
+  declaration. `System.Length` and friends always reach the built-in whatever
+  has been declared. Two methods of one signature in a class are now refused
+  outright rather than silently running the first.
 - Build strings with a `Buffer`, never `+` in a loop — a page is tens of
   kilobytes and concatenation is the cliff `Buffer` exists to answer.
 - ⚠️ **Never use a `Set` for membership. Use a `Map` with dummy values.** Under

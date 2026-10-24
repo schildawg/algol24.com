@@ -77,7 +77,7 @@ Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
-`v0.1.4`. An earlier pin, `01b2778`, was rewritten out of the compiler
+`v0.1.5`. An earlier pin, `01b2778`, was rewritten out of the compiler
 repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -141,14 +141,14 @@ wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec �
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 284. The other two figures in that row are still
-literals in the template: unit tests (232) and cases (245). Re-check both on a
+authority. The two now agree at 288. The other two figures in that row are still
+literals in the template: unit tests (243) and cases (256). Re-check both on a
 bump — and the second one has a trap of its own.
 
-The unit tests are what `./test.sh` prints in the compiler repository (*All 232
+The unit tests are what `./test.sh` prints in the compiler repository (*All 243
 tests passed*). **Cases is the whole corpus, defects included** — `conformance/`
 plus `refusals/` plus the checked-in `defects/`, which is exactly the figure
-`./conform.sh` reports as *the language: 245 passed*. Read it off that line
+`./conform.sh` reports as *the language: 256 passed*. Read it off that line
 rather than counting two directories and forgetting the third.
 
 ⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
@@ -230,6 +230,20 @@ end emitted a reference to the function where the constant belonged and would
 not compile. It is now `Repo`. A name declared here has to be one no imported
 unit uses — and `--test` will not catch it, because the interpreter runs.
 
+⚠️ **The bands alternate tint, so inserting one flips every band below it.**
+`.band.tint` is the only difference between the two, and the page reads as stripes
+only while they alternate. v0.1.5's extension-functions band went in above the
+guarantee and the three bands under it — guarantee, name, provenance — each had
+to swap. The check that would catch getting it wrong is your eyes; nothing in the
+build looks at it.
+
+⚠️ **`extension` is not a keyword, and the home page's code block leaves it
+uncolored on purpose.** `Scanner.a24` says so in as many words: `unit`, `test`,
+`on` and `extension` are deliberately absent, being identifiers recognized by
+position. The reference page colors from that scanner and so leaves it plain, and
+the hand-written block matches it rather than the eye. Coloring it would make the
+two pages disagree about the language.
+
 ⚠️ **A closed `<details>` hides its children in a way CSS cannot override.**
 `display: block` on the contents does not bring them back, so a table of
 contents cannot be collapsed by default and opened by a media query. The
@@ -260,6 +274,13 @@ Beyond the language reference, what bites when writing the generator:
   declaration. `System.Length` and friends always reach the built-in whatever
   has been declared. Two methods of one signature in a class are now refused
   outright rather than silently running the first.
+- ⚠️ **An `extension` is visible only where it is imported** — `[MOD-015]`, new
+  in v0.1.5. A top-level subprogram marked `extension` may also be called as a
+  method on its first parameter, which must have a written type; the permission
+  is found among the extensions the *compiling file* imports, and `uses` is not
+  transitive, so a unit reaching `Strings` for itself does not hand `S.Trim ()`
+  to its own importers. A member of the name always wins, with a `[WARN]` naming
+  the class that took it. `gen/Strings.a24` declares none of this yet.
 - Build strings with a `Buffer`, never `+` in a loop — a page is tens of
   kilobytes and concatenation is the cliff `Buffer` exists to answer.
 - ⚠️ **Never use a `Set` for membership. Use a `Map` with dummy values.** Under
@@ -315,9 +336,9 @@ forbids the phrase: it sells the language as a derivative of an old thing, when
 the old-looking surface is the deliberate part and the capability behind it is
 the point. Pascal may be named as the lineage of the *syntax*, never as the
 language's identity. The register is **retro-modern** — classic Pascal syntax
-over unbounded integers, full Unicode, gradual types, closures and a foreign
-function interface. The site said "Pascal-flavoured" in four places, including
-both meta descriptions, until v0.1.1.
+over unbounded integers, full Unicode, gradual types, closures, extension
+functions and a foreign function interface. The site said "Pascal-flavoured" in
+four places, including both meta descriptions, until v0.1.1.
 
 ⚠️ **American spelling throughout**, matching the compiler repository, which
 settled it in the commit *"Retro-modern, not Pascal-flavored — and American

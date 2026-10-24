@@ -72,8 +72,9 @@
 
     <h1 aria-label="Algol-24">Algol<span class="nm nm-big">*</span>24</h1>
     <p class="lede">A retro-modern language: classic Pascal syntax over unbounded
-       integers, full Unicode, gradual types, closures and a foreign function interface.
-       The compiler is written in Algol-24 and compiles itself.</p>
+       integers, full Unicode, gradual types, closures, extension functions and a
+       foreign function interface. The compiler is written in Algol-24 and compiles
+       itself.</p>
 
     <p class="status">v{{RELEASE}} &middot; <b>{{STATUS}}</b> &middot; on Homebrew</p>
 
@@ -120,7 +121,9 @@ $ brew install algol24</pre>
          system. The specification and the library reference are installed beside it.</p>
       <p>Bottles are built for Apple Silicon. Anywhere else — an Intel Mac, Linux —
          Homebrew builds from source, which needs a C compiler and takes about two
-         seconds. There is no Windows build yet.</p>
+         seconds. There is no Windows package: the runtime compiles with mingw-w64
+         as of v0.1.5, and foreign calls there still want a mingw
+         <code>libffi</code>.</p>
     </div>
   </div>
 
@@ -196,6 +199,40 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
   </div>
 
   <div class="band tint">
+    <div class="wrap claim" id="extensions">
+      <p class="eyebrow">The extension</p>
+      <h2>Free functions that read like methods.</h2>
+      <div class="rule"></div>
+      <p>A top-level subprogram marked <code>extension</code> may <em>also</em> be
+         called with method syntax on its first parameter: <code>Trim (S)</code> and
+         <code>S.Trim ()</code> are one call, and a unit of free functions composes
+         left to right — <code>Line.Trimmed ().Shortened (12).Upper ()</code>.</p>
+<pre>extension <span class="kw">function</span> <span class="fn">Shortened</span> (S : String, To : Integer) : String;
+<span class="kw">begin</span>
+    <span class="kw">if</span> <span class="fn">Length</span> (S) &lt;= To <span class="kw">then</span> <span class="kw">Exit</span> S;
+
+    <span class="kw">Exit</span> <span class="fn">Copy</span> (S, <span class="num">0</span>, To) + <span class="str">'...'</span>;
+<span class="kw">end</span>
+
+<span class="fn">WriteLn</span> (<span class="fn">Shortened</span> (Title, <span class="num">4</span>));   <span class="com">// both spellings</span>
+<span class="fn">WriteLn</span> (Title.<span class="fn">Shortened</span> (<span class="num">4</span>));      <span class="com">// are one call</span></pre>
+      <p>A member of the name always wins, so no call that compiles today can change
+         meaning — and where a member does hide an extension you can see, a
+         <code>[WARN]</code> names the class that took it. What a value responds to is
+         decided by the calling file's own <code>uses</code> clauses rather than
+         globally, so a unit that imports <code>Strings</code> for its own use does not
+         hand <code>S.Trim ()</code> to its importers. <code>extension</code> is not a
+         keyword either — it is an ordinary identifier recognized by its position,
+         so a program may still name a variable after it.</p>
+      <p>The language was feature-complete at v0.1.0 and deliberately closed. v0.1.5
+         opened it once, and once only, because the library now being written in
+         Algol-24 had measured the alternatives: grow the core one verb at a time, or
+         wrap <code>String</code> in a class whose seam answers 13 for the length of
+         a five-character string. A unit of functions that composes is neither.</p>
+    </div>
+  </div>
+
+  <div class="band">
     <div class="wrap claim" id="reference">
       <p class="eyebrow">The guarantee</p>
       <h2>The specification is the authority.</h2>
@@ -205,8 +242,8 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          carries a program that reproduces it.</p>
       <div class="facts">
         <div class="fact"><b>{{RULES}}</b><span>rules, each claimed by a case</span></div>
-        <div class="fact"><b>232</b><span>unit tests in Algol-24</span></div>
-        <div class="fact"><b>245</b><span>cases, under both processors</span></div>
+        <div class="fact"><b>243</b><span>unit tests in Algol-24</span></div>
+        <div class="fact"><b>256</b><span>cases, under both processors</span></div>
       </div>
       <p>Every case runs twice — interpreted and compiled — and both halves must be
          green. A case the interpreter gets right and the compiled program gets wrong is
@@ -223,7 +260,7 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
     </div>
   </div>
 
-  <div class="band">
+  <div class="band tint">
     <div class="wrap claim">
       <p class="eyebrow">The name</p>
       <h2>Why Algol, and why 24.</h2>
@@ -244,7 +281,7 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
     </div>
   </div>
 
-  <div class="band tint">
+  <div class="band">
     <div class="wrap claim">
       <p class="eyebrow">Provenance</p>
       <h2>It began as Lox.</h2>

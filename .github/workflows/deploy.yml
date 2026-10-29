@@ -30,6 +30,17 @@ jobs:
       - name: Build algc
         # Two stages: bootstrap/ builds with cc alone, and that compiler
         # compiles compiler/*.a24 into bootstrap/algc.
+        #
+        # ⚠️ gnu11, not c11, and this is the step that proved why. The runtime
+        # calls readlink("/proc/self/exe") for the program's own path, and
+        # glibc's unistd.h declares readlink only when __STRICT_ANSI__ is
+        # unset -- which -std=c11 sets. It was a warning on ubuntu-24.04 and
+        # became an error when ubuntu-latest moved to 26.04 on 2026-10-28,
+        # failing a seed that had built four days earlier. macOS declares it
+        # either way, so nothing local sees this. The compiler's own
+        # bootstrap/build.sh defaults to c11, hence the env rather than a flag.
+        env:
+          CFLAGS: -std=gnu11 -O2
         run: |
           cd vendor/algol24
           ./bootstrap/build.sh
@@ -49,7 +60,7 @@ jobs:
         run: |
           mkdir -p site build
           vendor/algol24/bootstrap/algc --compile --out=build gen/Main.a24
-          cc -std=c11 -O2 -o build/generate build/*.c
+          cc -std=gnu11 -O2 -o build/generate build/*.c
           ./build/generate
 
       - name: Add static assets

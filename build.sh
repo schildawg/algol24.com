@@ -17,6 +17,19 @@ cd "$(dirname "$0")"
 # the same two paths in .github/workflows/deploy.yml.
 ALGC=vendor/algol24/bootstrap/algc
 
+# ⚠️ gnu11 rather than c11, and the difference is not cosmetic. The runtime
+# calls POSIX -- readlink("/proc/self/exe") for the program's own path -- and
+# glibc's unistd.h declares readlink only when __STRICT_ANSI__ is unset, which
+# -std=c11 sets. macOS declares it either way, so this is invisible here. It
+# was invisible in CI too, as a warning, until ubuntu-latest moved from
+# 24.04 to 26.04 on 2026-10-28 and its gcc began treating an implicit
+# declaration as the error it has been since gcc 14. Same seed, same call,
+# green four days earlier. Keep this in step with deploy.yml, and note that
+# the compiler's own bootstrap/build.sh still defaults to c11 -- which is why
+# CFLAGS is exported into it rather than left to it.
+CFLAGS="${CFLAGS:--std=gnu11 -O2}"
+export CFLAGS
+
 # ⚠️ Testing that algc EXISTS is not enough, and the difference has bitten.
 # The submodule moves; the binary sitting in it does not. Bumping the pin to
 # v0.1.2 left a v0.1.1 algc in place, this script found it and skipped the
@@ -25,7 +38,13 @@ ALGC=vendor/algol24/bootstrap/algc
 # find. Compare what the binary reports against what the pinned sources
 # declare, and rebuild whenever they disagree.
 want=$(sed -n "s/^const VERSION := '\(.*\)';/\1/p" vendor/algol24/compiler/Main.a24)
-have=$([ -x "$ALGC" ] && "$ALGC" --version 2>/dev/null | awk '{ print $2 }')
+#
+# ⚠️ '|| true' because this runs under 'set -e'. With no algc present the test
+# fails, the substitution exits non-zero, and the assignment takes the script
+# down with it -- silently, before the "algc not built" message below could
+# print, which made that branch dead code on a genuinely fresh clone. Only a
+# tree that already had an algc ever got past this line.
+have=$([ -x "$ALGC" ] && "$ALGC" --version 2>/dev/null | awk '{ print $2 }' || true)
 
 if [ "$have" != "$want" ]; then
     if [ -z "$have" ]; then
@@ -97,7 +116,7 @@ rm -rf build
 mkdir -p build
 
 "$ALGC" --compile --out=build gen/Main.a24
-${CC:-cc} ${CFLAGS:--std=c11 -O2} -o build/generate build/*.c
+${CC:-cc} ${CFLAGS} -o build/generate build/*.c
 
 ./build/generate
 

@@ -113,6 +113,22 @@ Three more things that are only visible by reading several files at once:
   call it.** The mkdir, the generate, the asset copy and the placeholder check
   all exist twice. A change to the build has to be made in both, or CI publishes
   something other than what you tested.
+- ⚠️ **`-std=gnu11`, never `-std=c11`, and both files say so.** The runtime
+  calls `readlink("/proc/self/exe")` for the program's own path, and glibc's
+  `unistd.h` declares `readlink` only when `__STRICT_ANSI__` is unset — which
+  `-std=c11` sets. macOS declares it either way, so nothing local can see this.
+  It was a *warning* on `ubuntu-24.04` and became an error the day
+  `ubuntu-latest` moved to `ubuntu-26.04`, whose gcc treats an implicit
+  declaration as the error it has been since gcc 14: v0.1.6 failed CI on a seed
+  that had built green four days earlier, with the same call in the same place.
+  Three `cc` invocations need the dialect — `build.sh`'s own, `deploy.yml`'s,
+  and the compiler's `bootstrap/build.sh`, which still defaults to `c11` and so
+  is given `CFLAGS` from outside rather than trusted. The emitted C needs it
+  too: `algc --compile` copies `algol.c` into the output directory, so the
+  generator's own compile links the same runtime.
+  **The durable fix is upstream** — a feature-test macro in the compiler's
+  runtime, or `gnu11` as its default — and until then this is a trap for anyone
+  building `algc` on Linux, not only for this site.
 - **Both builds fail on an unrendered `{{`.** A placeholder added to a template
   with no matching `Replace` in `gen/Main.a24` exits 70 locally and fails the
   job in CI. Page constants live at the top of `Main.a24`; add the substitution

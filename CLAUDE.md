@@ -77,7 +77,7 @@ Reference and Tour pages. One pinned commit, so the documentation on the site
 cannot drift from the compiler that generated it.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
-`v0.1.5`. An earlier pin, `01b2778`, was rewritten out of the compiler
+`v0.1.6`. An earlier pin, `01b2778`, was rewritten out of the compiler
 repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -141,14 +141,14 @@ wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec �
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 288. The other two figures in that row are still
-literals in the template: unit tests (243) and cases (256). Re-check both on a
+authority. The two now agree at 291. The other two figures in that row are still
+literals in the template: unit tests (245) and cases (259). Re-check both on a
 bump — and the second one has a trap of its own.
 
-The unit tests are what `./test.sh` prints in the compiler repository (*All 243
+The unit tests are what `./test.sh` prints in the compiler repository (*All 245
 tests passed*). **Cases is the whole corpus, defects included** — `conformance/`
 plus `refusals/` plus the checked-in `defects/`, which is exactly the figure
-`./conform.sh` reports as *the language: 256 passed*. Read it off that line
+`./conform.sh` reports as *the language: 259 passed*. Read it off that line
 rather than counting two directories and forgetting the third.
 
 ⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
@@ -281,6 +281,21 @@ Beyond the language reference, what bites when writing the generator:
   transitive, so a unit reaching `Strings` for itself does not hand `S.Trim ()`
   to its own importers. A member of the name always wins, with a `[WARN]` naming
   the class that took it. `gen/Strings.a24` declares none of this yet.
+- ⚠️ **`and` is not `&`, and the compiler now says so** — `[EXP-023]`/`[EXP-024]`,
+  new in v0.1.6. `&`, `|`, `^`, `~`, `<<` and `>>` combine the bits of Integers
+  and evaluate both sides; `and`, `or` and `not` test truthiness, yield an
+  *operand* and short-circuit. Writing one where the other was meant raises a
+  `[WARN]` rather than quietly doing the other thing. Every Integer is two's
+  complement extended infinitely to the left, so `~0` is -1, `-1 & 5` is 5 and
+  `1 << 70` grows; a `Double` is refused rather than reinterpreted. `>>` floors
+  where `div` truncates, so they disagree on a negative value: `-7 >> 1` is -4
+  and `-7 div 2` is -3.
+- **`Str` takes a precision** — `[RT-028]`, new in v0.1.6. `Str (X, Decimals)`
+  renders a Double with exactly that many places and never in exponent form, and
+  `Str (X, Width, Decimals)` right-aligns it. Correctly rounded from the value,
+  so `Str (2.675, 2)` is `2.67`; ties go to even. It takes a Double only — an
+  Integer is refused, because one arity would otherwise mean a precision for one
+  type and a width for another.
 - Build strings with a `Buffer`, never `+` in a loop — a page is tens of
   kilobytes and concatenation is the cliff `Buffer` exists to answer.
 - ⚠️ **Never use a `Set` for membership. Use a `Map` with dummy values.** Under
@@ -337,12 +352,21 @@ the old-looking surface is the deliberate part and the capability behind it is
 the point. Pascal may be named as the lineage of the *syntax*, never as the
 language's identity. The register is **retro-modern** — classic Pascal syntax
 over unbounded integers, full Unicode, gradual types, closures, extension
-functions and a foreign function interface. The site said "Pascal-flavoured" in
-four places, including both meta descriptions, until v0.1.1.
+functions, bitwise operators and a foreign function interface. The site said
+"Pascal-flavoured" in four places, including both meta descriptions, until
+v0.1.1.
 
 ⚠️ **American spelling throughout**, matching the compiler repository, which
 settled it in the commit *"Retro-modern, not Pascal-flavored — and American
 spelling throughout."* This site was written in British spelling and was swept.
+
+⚠️ **"Stable, not closed" — never "closed".** The site said the language was
+"deliberately closed" and "opened once, and once only" from v0.1.5 until v0.1.6
+made both false in one release, with three changes. The compiler repository
+settled the wording in *"v0.1.6, and the language is stable rather than
+closed"*: it changes **only on measured demand from a project using it, and the
+measurement goes in the proposal**. Write the rule, not a count of exceptions to
+it — a count is a hostage to the next release.
 
 Do not call it a toy language. **v0.1.x is the feature-complete alpha**: the
 language is done, and *alpha* means only that the library written in Algol-24 is

@@ -72,9 +72,9 @@
 
     <h1 aria-label="Algol-24">Algol<span class="nm nm-big">*</span>24</h1>
     <p class="lede">A retro-modern language: classic Pascal syntax over unbounded
-       integers, full Unicode, gradual types, closures, extension functions and a
-       foreign function interface. The compiler is written in Algol-24 and compiles
-       itself.</p>
+       integers, full Unicode, gradual types, closures, extension functions, bitwise
+       operators and a foreign function interface. The compiler is written in Algol-24
+       and compiles itself.</p>
 
     <p class="status">v{{RELEASE}} &middot; <b>{{STATUS}}</b> &middot; on Homebrew</p>
 
@@ -195,6 +195,24 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          and a foreign function interface that reaches C — so a program can call SDL or
          libm directly. The examples draw a pie chart and the word <em>hello</em> in
          five scripts, with color emoji, into an SDL2 window.</p>
+      <p>The bits of an Integer are reached with <code>&amp;</code>, <code>|</code>,
+         <code>^</code>, <code>~</code>, <code>&lt;&lt;</code> and
+         <code>&gt;&gt;</code>, and every Integer is two's complement extended
+         infinitely to the left — so every operation is total and no width is named
+         anywhere. A left shift grows rather than wrapping, and a right shift floors
+         where <code>div</code> truncates.</p>
+<pre><span class="fn">WriteLn</span> (<span class="num">6</span> &amp; <span class="num">3</span>);        <span class="com">// 2</span>
+<span class="fn">WriteLn</span> (~<span class="num">0</span>);           <span class="com">// -1, every bit set</span>
+<span class="fn">WriteLn</span> (-<span class="num">1</span> &amp; <span class="num">5</span>);       <span class="com">// 5, all ones selects everything</span>
+<span class="fn">WriteLn</span> (<span class="num">1</span> &lt;&lt; <span class="num">70</span>);      <span class="com">// 1180591620717411303424</span></pre>
+      <p>A routine obliged to pick a width instead is correct for the values that fit
+         it and silently wrong for the rest, with nothing in its declaration able to
+         say which — which is why these are operators rather than a library's
+         business. A class may define the five binary ones and unary <code>~</code>
+         for its own instances, and <code>and</code>, <code>or</code> and
+         <code>not</code> are untouched: they test truthiness and short-circuit, and
+         writing one where a bitwise operator was meant now raises a
+         <code>[WARN]</code>.</p>
     </div>
   </div>
 
@@ -224,11 +242,19 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          hand <code>S.Trim ()</code> to its importers. <code>extension</code> is not a
          keyword either — it is an ordinary identifier recognized by its position,
          so a program may still name a variable after it.</p>
-      <p>The language was feature-complete at v0.1.0 and deliberately closed. v0.1.5
-         opened it once, and once only, because the library now being written in
-         Algol-24 had measured the alternatives: grow the core one verb at a time, or
-         wrap <code>String</code> in a class whose seam answers 13 for the length of
-         a five-character string. A unit of functions that composes is neither.</p>
+      <p>The language was feature-complete at v0.1.0, and it is stable rather than
+         closed: it changes only on measured demand from a project using it, and the
+         measurement goes in the proposal. This was the first such change, because the
+         library now being written in Algol-24 had measured the alternatives — grow the
+         core one verb at a time, or wrap <code>String</code> in a class whose seam
+         answers 13 for the length of a five-character string — and a unit of functions
+         that composes is neither.</p>
+      <p>v0.1.6 is three more on the same terms: the bitwise operators above, a
+         precision for <code>Str</code> that renders <code>2.675</code> to two places
+         as <code>2.67</code> because it rounds from the value rather than from a
+         rendering of it, and <code>Buffer</code> accessors for a four-byte unsigned
+         word and an eight-byte IEEE 754 Double — little-endian whatever the machine
+         is, so a record written on one and read on another agrees.</p>
     </div>
   </div>
 
@@ -242,8 +268,8 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          carries a program that reproduces it.</p>
       <div class="facts">
         <div class="fact"><b>{{RULES}}</b><span>rules, each claimed by a case</span></div>
-        <div class="fact"><b>243</b><span>unit tests in Algol-24</span></div>
-        <div class="fact"><b>256</b><span>cases, under both processors</span></div>
+        <div class="fact"><b>245</b><span>unit tests in Algol-24</span></div>
+        <div class="fact"><b>259</b><span>cases, under both processors</span></div>
       </div>
       <p>Every case runs twice — interpreted and compiled — and both halves must be
          green. A case the interpreter gets right and the compiled program gets wrong is

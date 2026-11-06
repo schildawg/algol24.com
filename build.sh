@@ -37,13 +37,7 @@ export CFLAGS
 # fails only in CI, where the clone is fresh and there is no stale binary to
 # find. Compare what the binary reports against what the pinned sources
 # declare, and rebuild whenever they disagree.
-#
-# ⚠️ compiler/Release.a24, NOT compiler/Main.a24: the constant moved there in
-# v0.2.2, when algvm learned --version and the two binaries had to read one
-# number.  Reading the old file answers EMPTY, which compares unequal to
-# whatever algc reports and so rebuilds on every run -- slow rather than wrong,
-# and silent either way.
-want=$(sed -n "s/^const VERSION := '\(.*\)';/\1/p" vendor/algol24/compiler/Release.a24)
+want=$(sed -n "s/^const VERSION := '\(.*\)';/\1/p" vendor/algol24/compiler/Main.a24)
 #
 # ⚠️ '|| true' because this runs under 'set -e'. With no algc present the test
 # fails, the substitution exits non-zero, and the assignment takes the script

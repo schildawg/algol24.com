@@ -14,10 +14,10 @@ uses Markdown;
 uses Highlight;
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
-/// both ways: 'v0.1.6' in the hero, and 'algc 0.1.6' where the install section
+/// both ways: 'v0.2.3' in the hero, and 'algc 0.2.3' where the install section
 /// quotes what --version actually prints. One constant, and the template adds
 /// the 'v' where it wants one.
-const Release := '0.1.6';
+const Release := '0.2.3';
 const Status  := 'pre-1.0';
 const Tap     := 'schildawg/algol24';
 /// ⚠️ Repo, not Source. 'uses' brings a unit's names in unqualified, and
@@ -26,6 +26,23 @@ const Tap     := 'schildawg/algol24';
 /// reference to the function where the constant belonged and would not compile.
 /// A name here has to be one no imported unit uses.
 const Repo := 'https://github.com/schildawg/algol24';
+
+/// Where the library lives, which is its own repository on purpose.
+///
+/// It is a USER of the language rather than part of it, with its own releases
+/// and its own record of what it has found wrong -- so it is linked rather
+/// than vendored, and its version is its own.
+const LibRepo := 'https://github.com/schildawg/algol24-library';
+
+/// The library's reference, and the machine's.
+///
+/// ⚠️ Linked on GitHub rather than rendered here, which the Reference page is
+/// not: that one is built from the PINNED specification, so the rules it
+/// states describe the compiler the rest of the site describes. Rendering
+/// these two the same way is the obvious next step and wants the library as a
+/// second submodule, pinned to its own release.
+const LibRef := 'https://github.com/schildawg/algol24-library/blob/v0.1.0/REFERENCE.md';
+const VmRef  := 'https://github.com/schildawg/algol24/blob/v0.2.3/vm/REFERENCE.md';
 
 /// ⚠️ Read at build time, and pinned. This is the submodule's copy, so the
 /// figure counted from it describes the same compiler the rest of the page
@@ -108,6 +125,9 @@ begin
     Page := Replace(Page, '{{MASTHEAD}}', ReadFile(Mast));
     Page := Replace(Page, '{{THEME}}',    ReadFile(Theme));
     Page := Replace(Page, '{{SOURCE}}',   Repo);
+    Page := Replace(Page, '{{LIBREPO}}',  LibRepo);
+    Page := Replace(Page, '{{LIBREF}}',   LibRef);
+    Page := Replace(Page, '{{VMREF}}',    VmRef);
     Page := Replace(Page, '{{RULES}}',    Rules);
 
     Exit Page;

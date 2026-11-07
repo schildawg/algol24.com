@@ -56,7 +56,9 @@ templates/theme.html      ──┘                 ├──> site/opcodes/inde
                              │                └──> site/library/index.html
                              │                       (vendor/algol24-library)
                              ├── gen/Template.a24    read and write
-                             ├── gen/Strings.a24     Trim, StartsWith, Replace, Split
+                             ├── gen/Markup.a24      StartsWith and Escape
+                             │                      (Trim, Replace, Split come
+                             │                       from the pinned library)
                              ├── gen/Markdown.a24    the reader, and all three documents
                              └── gen/Highlight.a24   .a24 and console colouring
 ```
@@ -97,8 +99,15 @@ rebuilding; pointed at the old path it answers **empty**, compares unequal to
 whatever `algc` reports, and rebuilds the compiler on every single run. Slow
 rather than wrong, and silent either way.
 
+⚠️ **Read `RELEASES.md` first on a bump.** The compiler repository keeps
+cumulative release notes now — what changed and why, at the level someone
+deciding whether to upgrade needs. It quotes **no counts on purpose**, so the
+figures still come from the harnesses, but it is the fastest way to know what a
+release actually means for this site. `finished/PLAN-0.2.4.md` there carries
+the root cause of every defect that release closed.
+
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.2.3` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
+`v0.2.4` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -227,28 +236,37 @@ The whole chain — `cc` → seed → `algc` → generator → site → Pages �
 today.
 
 The Markdown reader was unblocked by v0.1.2's `Pos` start index,
-`ToUpper`/`ToLower` and the directory built-ins; `gen/Strings.a24` builds
-`Trim`, `StartsWith`, `Replace` and `Split` on top of them.
+`ToUpper`/`ToLower` and the directory built-ins. `Trim`, `Replace` and `Split`
+come from the pinned library's `strings` now; `gen/Markup.a24` keeps the two it
+does not have, `StartsWith` and an `Escape` that is about HTML.
 
 ⚠️ **Every figure on the page is derived, and the one that was written down was
 wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec —
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 292. **`OpcodeCount` is the second derived
+authority. The two now agree at 297. **`OpcodeCount` is the second derived
 figure** and was added for the same reason: three sources said 78, 80 and 81,
 and the entries in the document being rendered are the only count that cannot
 drift from the page a reader is looking at. The remaining literals in the
-template are unit tests (247) and cases (270). Re-check both on a bump — and
+template are unit tests (247) and cases (279). Re-check both on a bump — and
 the second one has a trap of its own.
 
-⚠️ **`OP_COUNT` is a sentinel, which is why the opcode count had three
+⚠️ **The machine runs 276 of the 279, and the page says so precisely.** The
+corpus is `conformance/` (210) plus `refusals/` (66) plus `defects/` (3);
+`vm/conform.sh` walks the first two and not the third, so *every case under all
+three processors* was an over-claim. 276 is the machine's own figure, from its
+own harness.
+
+⚠️ **`OP_COUNT` is a sentinel, which is why the opcode count once had three
 answers.** `vm/OpCode.a24` declares 81 `const OP_`; the last ends the set and is
-not an instruction, so there are **80**. `vm/REFERENCE.md`'s own opening
-sentence says 78, in the one document whose stated discipline is that it never
-argues with `OpCode.a24`. And `./vm/reference.sh` prints `described: 79` on one
-line and `variable-width: 1` on the next — reading only the first is how 79
-nearly reached the page.
+not an instruction, so there are **80**. `vm/REFERENCE.md` used to open by
+saying 78 — in the one document whose stated discipline is that it never argues
+with `OpCode.a24` — and `./vm/reference.sh` printed `described: 79` on one line
+with `variable-width: 1` on the next, so reading only the first is how 79 nearly
+reached the page. Both were fixed in v0.2.4 as `D-2`: the count is gone from the
+prose entirely and the script opens with *80 entries, 80 opcodes*. `OpcodeCount`
+derives it here anyway, which is what found the discrepancy.
 
 The unit tests are what `./test.sh` prints in the compiler repository (*All 247
 tests passed*). The machine has its own suite and its own root: `./test.sh
@@ -258,7 +276,7 @@ program and expects a file to run.
 
 **Cases is the whole corpus, defects included** — `conformance/` plus
 `refusals/` plus the checked-in `defects/`, which is exactly the figure
-`./conform.sh` reports as *the language: 270 passed*. Read it off that line
+`./conform.sh` reports as *the language: 279 passed*. Read it off that line
 rather than counting two directories and forgetting the third.
 
 ⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
@@ -326,6 +344,12 @@ bought **1.25x**, and only once the quadratic term was gone did it start buying
 Both changes, or neither is worth much. The emitted C goes to `build/`, which is
 ignored, and is emitted fresh each run because the directory is built with
 `cc *.c` and a renamed module would otherwise leave its old `.c` behind.
+
+⚠️ **The page quotes no checksum of itself, and the first version did.** A
+band showed `md5 -q site/index.html` with the digest beneath it — which cannot
+be right, because writing the digest into the page changes the page. It shipped
+wrong and stayed wrong until v0.2.4. The block shows `diff -r` against a second
+tree instead, which is what CI actually does and has no fixed point to chase.
 
 ⚠️ `build.sh --test` still runs the tests **interpreted**, so nothing compares
 the back ends here. The guard that would catch a divergence is the
@@ -406,7 +430,8 @@ Beyond the language reference, what bites when writing the generator:
   is found among the extensions the *compiling file* imports, and `uses` is not
   transitive, so a unit reaching `Strings` for itself does not hand `S.Trim ()`
   to its own importers. A member of the name always wins, with a `[WARN]` naming
-  the class that took it. `gen/Strings.a24` declares none of this yet.
+  the class that took it. Nothing in `gen/` declares one; the library's
+  `strings` is all extensions, and this generator calls them prefix-style.
 - ⚠️ **`and` is not `&`, and the compiler now says so** — `[EXP-023]`/`[EXP-024]`,
   new in v0.1.6. `&`, `|`, `^`, `~`, `<<` and `>>` combine the bits of Integers
   and evaluate both sides; `and`, `or` and `not` test truthiness, yield an
@@ -458,15 +483,16 @@ Beyond the language reference, what bites when writing the generator:
   `gen/Template.a24`** — not built-ins. File I/O in the language is the
   `TextFile` resource; those three wrap it. A program that calls them without
   `uses Template` fails with `Undefined variable 'ReadFile'`.
-- ⚠️ **TWO UNITS WHOSE NAMES DIFFER ONLY IN CASE BREAK TWO OF THE THREE
-  PROCESSORS.** This is `D-1` in `DEFECTS-FOUND.md`, met for real: `unit
-  Strings` beside the library's `unit strings`. The interpreter is correct;
-  `algvm` loses the second unit and raises `Undefined variable`; and
-  `algc --compile` names each emitted C file after its unit, so `strings.c`
-  overwrote `Strings.c` and the build died on five undeclared functions. Hence
-  `gen/Markup.a24` — a rename, which is the way round it and not the fix. A
-  case-insensitive filesystem also cannot hold both files in one directory, and
-  `cp` resolves that by silently clobbering one with the other.
+- ⚠️ **TWO UNITS WHOSE NAMES DIFFER ONLY IN CASE ARE REFUSED** — in all three
+  processors, as of v0.2.4. A unit name is an identifier and identifiers fold
+  `[SRC-011]`, so `Strings` and `strings` are one name; the refusal names both
+  files. This was `D-1`, reported from here and fixed there: before v0.2.4 the
+  interpreter was correct, `algvm` lost the second unit, and `algc --compile`
+  named each emitted C file after its unit so `strings.c` overwrote
+  `Strings.c`. `gen/Markup.a24` is the rename that got round it and stays,
+  because a unit named for what it does beats one named for a collision. A
+  case-insensitive filesystem still cannot hold both files in one directory,
+  and `cp` resolves that by silently clobbering one with the other.
 - ⚠️ **The vendored `algc` has no foreign calls.** `bootstrap/build.sh` builds
   without `--ffi` on purpose, so a library unit reaching SDL runs under `algvm`
   and not under the compiler the site builds with — `Foreign calls are not

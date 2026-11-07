@@ -283,26 +283,39 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
       <div class="facts">
         <div class="fact"><b>{{OPCODES}}</b><span>opcodes, one reference entry each</span></div>
         <div class="fact"><b>140</b><span>tests of the machine itself</span></div>
-        <div class="fact"><b>270</b><span>cases it answers like the others</span></div>
+        <div class="fact"><b>276</b><span>cases it answers like the others</span></div>
       </div>
-      <p>This page is the evidence. The generator that builds it is 2,250 lines of
-         Algol-24; run it under each processor in turn and the bytes that come out do not
-         move.</p>
-<pre>$ ./build.sh                    <span class="com"># compiled to C, 0.08s</span>
-$ algvm gen/Main.a24            <span class="com"># bytecode, 3.78s</span>
-$ algc gen/Main.a24             <span class="com"># tree-walking, 20.96s</span>
-$ md5 -q site/index.html        <span class="com"># all three</span>
-<span class="out">ff546849518a27e88a734516ca67c44d</span></pre>
-      <p>A disagreement would be a bug in whichever processor is the odd one out, and
-         finding those is most of what building a third one was for. It also hosts the
-         compiler: run <code>algc</code> <em>on</em> the machine and ask it for C, and the
-         C is byte-identical to what a native <code>algc</code> emits — the whole front
-         end and the whole back end, running as bytecode, agreeing to the byte.</p>
-      <p>Under all three there is now a <strong>precise</strong> collector rather than a
-         guess. The compiler emits the addresses of a program's module-level variables and
-         a shadow stack for its locals, so nothing has to ask whether a word might be a
-         pointer. Compiling the compiler costs 707 MB where it used to cost 2952 MB, for
-         about 6% more time.</p>
+      <p>This page is the evidence, and the check runs on every push. The generator
+         that builds it is 2,250 lines of Algol-24 reading 27,000 lines of Markdown; run
+         it under each processor in turn and the bytes that come out do not move.</p>
+<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.08s</span>
+$ mv site site-cc &amp;&amp; mkdir site
+$ algvm gen/Main.a24            <span class="com"># the machine, 3.78s</span>
+$ diff -r site-cc site          <span class="com"># and it prints nothing</span></pre>
+      <p>It also hosts the compiler: run <code>algc</code> <em>on</em> the machine and
+         ask it for C, and the C is byte-identical to what a native <code>algc</code>
+         emits — the whole front end and the whole back end, running as bytecode,
+         agreeing to the byte.</p>
+      <p>The tree-walking interpreter is the slow one — 20.96s for the same four pages
+         — and it agrees to the byte as well. A disagreement would be a bug in whichever
+         processor is the odd one out, and that is most of what building a third one was
+         for.</p>
+      <p>Collection is <strong>precise</strong> rather than a guess. The compiler emits
+         the addresses of a program's module-level variables and a shadow stack for its
+         locals, so nothing has to ask whether a word might be a pointer. The compiled
+         back end has had that since the machine shipped — compiling the compiler in
+         707 MB where it once took 2952 MB — and in v0.2.4 the tree-walking interpreter
+         stopped declining it, at <strong>2.8× less memory for about 9% more time</strong>.
+         It is easy to misremember as a feature of the machine, and it is not.</p>
+      <p>A runtime error now says where it happened, file and line, under the interpreter
+         and under the machine. <strong>Compiled Algol-24 deliberately carries no source
+         positions</strong> and will not: storing one before every statement is a cost
+         every program would pay forever so that a failing one could be read. A program
+         that wants that runs on the machine, which can disassemble itself —
+         <code>--list</code> walks every chunk, <code>--trace N</code> keeps the last N
+         instructions with the stack pointer and call depth, and <code>--watch</code>
+         dumps the instant a message is raised. Each processor finds the location its own
+         way, and the machine pays nothing at all until something fails.</p>
     </div>
   </div>
 
@@ -369,13 +382,27 @@ $ md5 -q site/index.html        <span class="com"># all three</span>
       <div class="facts">
         <div class="fact"><b>{{RULES}}</b><span>rules, each claimed by a case</span></div>
         <div class="fact"><b>247</b><span>unit tests in Algol-24</span></div>
-        <div class="fact"><b>270</b><span>cases, under all three processors</span></div>
+        <div class="fact"><b>279</b><span>cases in the corpus</span></div>
       </div>
-      <p>Every case runs under all three processors, and every run must be green. A case
-         the interpreter gets right and the compiled program gets wrong is a gap, and a
-         gap is a failure rather than a note. A defect's test is stranger
-         still: it records the wrong behavior and passes for as long as that behavior
-         lasts, turning red the day the defect is fixed.</p>
+      <p>Every case runs interpreted and compiled, and every run must be green; the 276
+         conformance and refusal cases run on the machine as well. A case the interpreter
+         gets right and the compiled program gets wrong is a gap, and a gap is a failure
+         rather than a note. A defect's test is stranger still: it records the wrong
+         behavior and passes for as long as that behavior lasts, turning red the day the
+         defect is fixed.</p>
+      <p>None of which finds the bugs that a <em>program</em> finds. v0.2.4 is sixteen
+         defects, and not one of them was found by reading the compiler: every report came
+         from a game of about twenty units, or from this website — both written in
+         Algol-24 by people meeting the language as users of it. Five of the sixteen
+         turned out to be one bug, and its worst shape read a program-level variable as an
+         imported enumeration's member, so every assignment to it was discarded in
+         silence. A seventeenth was found while fixing the others, which nobody reported.</p>
+<pre>$ ./defects.sh
+<span class="out">0 reproducing, 16 fixed, of 16 checked</span></pre>
+      <p>That harness is new, and it is the only one here written to <em>fail</em>: each
+         report is reduced to the smallest program that shows it and run under whichever
+         processors disagree, so the sweep goes green only when every one is fixed and
+         stays green only while they remain so.</p>
       <p>Then there is the compiler itself. It compiles itself, compiles itself again
          with the result, and the two emissions must be byte-identical. That is a
          determinism check as much as a correctness one — no hash-order iteration, no

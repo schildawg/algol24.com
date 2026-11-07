@@ -1,16 +1,22 @@
-# Defects found while updating the site for v0.2.3
+# Defects found while updating the site
 
 Found by building algol24.com against the pinned compiler, machine and library,
 and by running the generator under all three processors. Written here rather
 than in `spec/DEFECTS.md` because that file wants an entry the compiler
 repository owns; these are reports, with reproductions, for whoever takes them.
 
-Versions: compiler and machine **v0.2.3** (tag `1fe0171`), library **v0.1.0**
-(tag `a1791e0`). macOS 14, APFS, case-insensitive.
+**Nothing here is open.** Both reports were reported against v0.2.3, accepted,
+and fixed in **v0.2.4** — where they are `D-1` and `D-2` of the sixteen-defect
+sweep, under the numbering this file gave them. Each is verified below against
+the pinned v0.2.4 binaries rather than taken on trust, which is the only reason
+a closed report is worth keeping.
+
+The compiler repository's `finished/PLAN-0.2.4.md` carries the root cause for
+each, and `./defects.sh` is the harness that holds all sixteen closed.
 
 ---
 
-## D-1 — Two units whose names differ only in case: two processors, two wrong answers
+## D-1 — ✅ FIXED in v0.2.4 — Two units whose names differ only in case
 
 **Severity.** The interpreter is right and the other two are wrong, differently.
 It is silent in the sense that matters: nothing says *these two units collide*.
@@ -79,12 +85,40 @@ only in case* is a diagnostic a reader could act on. Emitting a C filename
 derived from the unit's path rather than its name would fix the compiled half
 without a diagnostic, but would leave `algvm` wrong.
 
-**How the site works around it.** `gen/Strings.a24` is now `gen/Markup.a24`,
-holding the two functions the library does not have. A rename, not a fix.
+**How the site worked around it.** `gen/Strings.a24` became `gen/Markup.a24`,
+holding the two functions the library does not have. A rename, not a fix — and
+it stays, because a unit named for what it does is better than one named for a
+collision that no longer happens.
+
+### Verified fixed
+
+v0.2.4 took the first of the two options above: **fold the comparison and
+refuse the program**, everywhere. A unit name is an identifier and identifiers
+fold [SRC-011]; the one comparison in the compiler that did not know it now
+does, and [MOD-002] gained a sentence saying the registry folds where the
+*lookup* does not — which is the part that makes it a decision rather than an
+edit, since on Linux the two units were legitimately distinct.
+
+The same three-file reproduction, run against the pinned v0.2.4 binaries, now
+answers identically under all three processors:
+
+```console
+$ algc repro/Main.a24
+[ERROR] repro/Main.a24: Two units whose names differ only in case:
+        'repro/a/Alpha.a24' and 'repro/b/alpha.a24'.
+        A unit name is matched without regard to case.
+[ERROR] 2 | uses 'b/alpha';
+        |      ^^^^^^^^^
+```
+
+`algvm` and `algc --compile` print the same thing — including the file, the
+line and the caret, which is the v0.2.4 diagnostic work showing. The refusal
+names **both** files, which is what a reader needs: the collision is never
+visible in one of them alone.
 
 ---
 
-## D-2 — `vm/REFERENCE.md` states 78 opcodes where `vm/OpCode.a24` has 80
+## D-2 — ✅ FIXED in v0.2.4 — an opcode count its own body contradicted
 
 Documentation, not behaviour, but in the one document whose stated discipline is
 that it never argues with `OpCode.a24`:
@@ -94,7 +128,7 @@ that it never argues with `OpCode.a24`:
 `OpCode.a24` declares 81 `const OP_`; the last is `OP_COUNT`, the sentinel that
 ends the set and is not an instruction. So there are **80**, and the reference
 carries exactly 80 `## OP_` entries — its own body disagrees with its own
-opening sentence. `OVERVIEW.md` says 80 and is right.
+opening sentence. `finished/OVERVIEW.md` says 80 and is right.
 
 `./vm/reference.sh` reports it in two lines that are easy to read as one:
 
@@ -106,6 +140,28 @@ variable-width  : 1
 Taking the first for the total is how this nearly reached the website as 79.
 A single stated total would be harder to misread.
 
+### Verified fixed, and further than asked
+
+The count is **gone from the prose entirely** rather than corrected, which is
+the better answer and not the one this report proposed:
+
+> ⚠️ **NO OPCODE COUNT IS WRITTEN IN THIS FILE, and that is deliberate.** […]
+> `./vm/reference.sh` prints the figure, having counted it; a number in prose
+> is a claim nothing checks.
+
+And the script now opens with one unambiguous line where two could be read as
+one:
+
+```console
+$ ./vm/reference.sh
+REFERENCE.md — 80 entries, 80 opcodes
+...
+opcodes declared by OpCode.a24 : 80
+```
+
+The site derives its own figure from the entries regardless, which is the
+discipline that found the discrepancy.
+
 ---
 
 ## Not defects, but worth writing down
@@ -114,12 +170,20 @@ A single stated total would be harder to misread.
   assigned.` `run.a24` is the machine's entry point and expects a file to run,
   so its tests are reached as `./test.sh vm/Vm.a24` (140). Correct behaviour,
   surprising route.
-- **The published 6.9× does not reproduce here.** `Fib (27)` with the pinned
-  binaries on this machine is **1.38s** under `algvm` against **6.77s**
-  interpreted — 4.9×, stable across runs, 1.34s with `--collect 0`. The
-  interpreter half is within 8% of the published 6.24s; the machine half is 52%
-  off the published 0.91s, which suggests a differently-built `algvm` rather
-  than noise.
+- **The published 6.9× does not reproduce here**, and was never put on the
+  page. `Fib (27)` with the pinned binaries on this machine:
+
+  | | v0.2.3 | v0.2.4 |
+  | --- | --- | --- |
+  | `algvm` | 1.38s | **1.35s** |
+  | `algc`, interpreted | 6.77s | **6.63s** |
+  | the ratio | 4.9× | **4.9×** |
+
+  Re-measured at v0.2.4 because that release gave the interpreter a collector
+  for about 9% more time, which should have *widened* the gap and did not move
+  it. The interpreter half is within 8% of the published 6.24s; the machine
+  half is around 50% off the published 0.91s, which points at a differently
+  built `algvm` rather than at noise. The site states no multiple.
 - **The library's `.so` shims are gitignored build products**, so a fresh
   submodule clone cannot run any FFI-backed unit until `./build.sh` runs in it.
   Combined with `bootstrap/build.sh` defaulting to no `--ffi`, a `uses graph`

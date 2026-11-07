@@ -134,6 +134,26 @@ Three more things that are only visible by reading several files at once:
   call it.** The mkdir, the generate, the asset copy and the placeholder check
   all exist twice. A change to the build has to be made in both, or CI publishes
   something other than what you tested.
+- ⚠️ **CI has a step `build.sh` does not: *Agree with the other two
+  processors*.** It builds `algvm`, runs the 124 tests on it, regenerates the
+  site with it and **`diff -r`s that against the compiled site**. A
+  disagreement about one byte fails the job rather than deploying, because one
+  of the two processors would then be wrong. It is CI-only because it wants
+  `libffi` — `vm/build.sh` has no `--ffi` switch, a foreign call being a
+  feature of the language — and the local build deliberately needs nothing but
+  a C compiler. Run it by hand on a Mac, where the SDK has libffi:
+
+  ```sh
+  vendor/algol24/vm/build.sh && vendor/algol24/vm/algvm --test gen/Main.a24
+  mv site site-cc && mkdir site && vendor/algol24/vm/algvm gen/Main.a24
+  diff -r site-cc site && rm -rf site && mv site-cc site
+  ```
+
+  ⚠️ The generator writes to `site/` and nowhere else, so the compiled run has
+  to be moved aside rather than pointed elsewhere — and the step runs **before**
+  the asset copy, so the two trees hold only generated HTML when they are
+  compared. `vm/build.sh` also defaults to `-std=c11`, so it gets `CFLAGS` from
+  outside like the other three.
 - ⚠️ **`-std=gnu11`, never `-std=c11`, and both files say so.** The runtime
   calls `readlink("/proc/self/exe")` for the program's own path, and glibc's
   `unistd.h` declares `readlink` only when `__STRICT_ANSI__` is unset — which

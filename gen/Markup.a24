@@ -1,0 +1,92 @@
+/// The two text operations the generator needs that NOTHING ELSE CARRIES.
+///
+/// ⚠️ NAMED `Markup` BECAUSE `Strings` COLLIDED WITH THE LIBRARY'S `strings`,
+/// and not merely in the reader's eye. `algc --compile` names each emitted C
+/// file after its unit, so on a case-insensitive filesystem `strings.c`
+/// overwrote `Strings.c` and the build failed with five errors about a
+/// function nothing declared. The interpreter is fine with the pair; `algvm`
+/// loses the second unit and raises `Undefined variable`. A defect, reported,
+/// with a reproduction in DEFECTS-FOUND.md -- and this rename is the way round
+/// it rather than the fix.
+///
+/// ⚠️ THIS UNIT USED TO HOLD SIX. `Trim`, `Replace` and `Split` now come from
+/// the library's own `strings`, imported by path -- and `IsSpace` went with
+/// them, having existed only to serve the `Trim` that is gone. What is left is
+/// what the library does not have: `StartsWith`, and an `Escape` that is about
+/// HTML rather than about strings.
+///
+/// The two were measured against each other before the swap, over 15,000 lines
+/// holding em-dashes plus twenty passes of `Replace` on a page-sized string:
+/// identical answers, the library 5% slower, and no algorithmic difference --
+/// both walk once with `Pos`'s start index. The one behavioural difference is
+/// deliberate on the library's side: `Replace (T, '', X)` RAISES there where
+/// this unit answered T unchanged, and `Split (T, '')` likewise. Every needle
+/// in this generator is a non-empty literal, so the difference cannot arise --
+/// and raising is the better of the two answers if it ever could.
+///
+/// ⚠️ A single pass is still not linear time on long text. A character index
+/// into a string holding any non-ASCII character walks from the start to find
+/// the byte offset, so the cost of the calls in one pass grows with how far
+/// into the text they reach. Measured on the 352 KB specification, which is
+/// full of warning signs and em-dashes, `Split` took 3.40s; on ASCII text of
+/// the same size, 0.11s. That is a property of the language and not of whose
+/// `Split` it is. Read a file with `Template.ReadLines` and work a line at a
+/// time, and the question never arises.
+unit Markup;
+
+/// ⚠️ Imported BY PATH, which is [MOD-001]: a bare identifier names a file of
+/// that name with '.a24' appended, and a quoted string is a path -- resolved
+/// beside this file first, so '../vendor/...' reaches the pinned submodule.
+/// Nothing has to be copied, symlinked or installed, and the extension is
+/// still appended, so the path is written without one.
+uses '../vendor/algol24-library/strings';
+
+/// Whether Text begins with Prefix.
+///
+/// An empty prefix begins everything, the empty string included.
+function StartsWith (Text : String, Prefix : String) : Boolean;
+var
+    N := 0;
+
+begin
+    N := Length (Prefix);
+
+    if N > Length (Text) then Exit False;
+
+    Exit Copy (Text, 0, N) = Prefix;
+end
+
+/// Text with the three characters HTML reserves replaced by entities.
+///
+/// The ampersand is replaced first. Doing it last would rewrite the ampersands
+/// that the other two had just introduced, and every entity on the page would
+/// arrive doubly escaped.
+function Escape (Text : String) : String;
+var
+    S := '';
+
+begin
+    S := Replace(Text, '&', '&amp;');
+    S := Replace(S, '<', '&lt;');
+
+    Exit Replace(S, '>', '&gt;');
+end
+
+test 'StartsWith Answers For A Prefix And A Non Prefix';
+begin
+    AssertTrue (StartsWith ('## Heading', '##'));
+    AssertTrue (not StartsWith ('# Heading', '##'));
+end
+
+test 'StartsWith Takes An Empty Prefix And A Prefix Longer Than The Text';
+begin
+    AssertTrue (StartsWith ('', ''));
+    AssertTrue (StartsWith ('abc', ''));
+    AssertTrue (not StartsWith ('ab', 'abc'));
+end
+
+test 'Escape Replaces The Three Reserved Characters';
+begin
+    AssertEqual('&lt;pre&gt;', Escape('<pre>'));
+    AssertEqual('&amp;amp;', Escape('&amp;'));
+end

@@ -233,33 +233,49 @@ without `--ffi` by design, so any library unit reaching SDL works under `algvm`
 and not under the compiler the site builds with. The library's `.so` shims are
 gitignored build products and absent from a fresh submodule clone.
 
-## Phase 5: the swap is rejected, on measurement
+## Phase 5: the swap is ADOPTED, after a correction
 
-Of 58 subprograms across `gen/`, exactly three have a library equivalent:
-`Trim`, `Replace`, `Split`. Both units were run head to head on 15,000 lines
-holding em-dashes, plus twenty passes of `Replace` over a page-sized string:
+⚠️ **This section first said rejected, and the reason it gave was wrong.** It
+claimed `uses` could not reach a unit under `vendor/`, because the search path
+for a bare name is the program's directory, the working directory and two paths
+beside the binary. [MOD-001] also provides a **quoted** form, which is a path
+resolved beside the importing file — `uses '../vendor/algol24-library/strings';`
+works, interpreted and compiled, with nothing copied, symlinked or installed.
+The author pointed this out. The extension is still appended, so the path is
+written without one.
+
+So the swap was made. Of 58 subprograms across `gen/`, three had a library
+equivalent, and all three are now the library's:
 
 | | result | time |
 | --- | --- | --- |
 | library `strings` | 450000 / 1950000 / 480000 | **2.31s** |
 | `gen/Strings.a24` | 450000 / 1950000 / 480000 | **2.21s** |
 
-Identical answers, including on a trailing separator, a leading one, an absent
-one, a doubled one and a whitespace-only trim. No algorithmic difference —
-both walk once with `Pos`'s start index, and the library's own comment records
-the quadratic version it replaced. The library is ~5% slower.
+Identical answers on a trailing separator, a leading one, an absent one, a
+doubled one, a whitespace-only trim, a replacement that contains its own
+needle, and a needle spanning the whole string. No algorithmic difference —
+both walk once with `Pos`'s start index. 5% slower on a build that takes
+0.08s.
 
-So the swap would cost a build-time dependency on a second repository, a
-symlink or a copy to satisfy a search path that cannot see into
-`vendor/`, the deletion of our unit to free a filename macOS thinks is taken,
-and a new home for `StartsWith`, `IsSpace` and `Escape`, which the library does
-not have. It would buy three functions out of six, 5% slower.
+One deliberate behavioural difference: `Replace (T, '', X)` and
+`Split (T, '')` **raise** in the library where ours answered `T` unchanged.
+Every needle in this generator is a non-empty literal, so it cannot arise, and
+raising is the better answer if it ever could.
 
-`file` was rejected on its own terms: `gen/Template.a24`'s three functions wrap
-the `TextFile` resource, while the library's `file` unit needs
-`libfileffi.so` — a build product that is not in the repository — for
-behaviour the generator already has.
+**What it cost, and what it bought.** `gen/Strings.a24` became
+`gen/Markup.a24` and kept the two the library does not have — `StartsWith`, and
+an `Escape` that is about HTML rather than about strings. `IsSpace` went with
+`Trim`, having served nothing else. The four pages are **byte-identical** before
+and after, under the compiled back end and the machine alike. And because
+`--test` is transitive over `uses`, the suite went from **89 to 124**: the
+library's 48 string tests now run as part of the site's own.
 
-**The library is a runtime library for programs. The generator is a build-time
-tool that has to run from a fresh clone with nothing installed.** That is the
-distinction, and it is worth writing down rather than rediscovering.
+**And it turned up a defect**, which a rejected swap would not have. Two units
+whose names differ only in case break two of the three processors — `D-1` in
+`DEFECTS-FOUND.md`, with a reproduction. The rename is the way round it.
+
+`file` is still rejected, on its own terms: `gen/Template.a24`'s three
+functions wrap the `TextFile` resource, while the library's `file` unit needs
+`libfileffi.so` — a build product that is not in the repository — for behaviour
+the generator already has.

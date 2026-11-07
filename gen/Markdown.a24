@@ -15,8 +15,9 @@
 /// question never comes up.
 unit Markdown;
 
-uses Strings;
+uses Markup;
 uses Highlight;
+uses '../vendor/algol24-library/strings';
 
 /// The number of '#' a line opens with, or zero when it is not a heading.
 ///

@@ -10,7 +10,8 @@
 /// strength of one apostrophe in a comment.
 unit Highlight;
 
-uses Strings;
+uses Markup;
+uses '../vendor/algol24-library/strings';
 
 /// Whether C is an ASCII digit.
 function IsDigit (C : Char) : Boolean;

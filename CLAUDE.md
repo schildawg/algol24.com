@@ -320,8 +320,8 @@ all of them.** Measured on this machine, building all four pages:
 | bytecode, `algvm gen/Main.a24` | **3.78s** |
 | tree-walking, `algc gen/Main.a24` | **20.96s** |
 
-Byte-identical output from all three, and the 89 tests pass under `algvm
---test` as well. Worth re-running on a pin bump, because this is a far better
+Byte-identical output from all three, and the tests pass under `algvm --test`
+as well. Worth re-running on a pin bump, because this is a far better
 exercise of a processor than any single corpus case: 2,250 lines of Algol-24
 reading 27,000 lines of Markdown. `--collect 100` — collecting every hundred
 instructions, 36× slower — also produces identical output, which is the
@@ -420,19 +420,33 @@ Beyond the language reference, what bites when writing the generator:
   followed by re-`Add` moves the element to the **end**. `ALGOL-24.md` §5 claims
   order is unspecified and is wrong — §7 is correct.
 - `uses` is not transitive; every file declares its own dependencies.
-- ⚠️ **`uses` does NOT read `ALGOL24_LIB`.** The search path is the program's
-  own directory, the working directory, `<binary>/lib`, and
+- ⚠️ **A quoted `uses` IS A PATH** — `[MOD-001]`. A bare identifier names a
+  file of that name with `.a24` appended; a quoted string is a path, resolved
+  **beside the importing file first**, then the working directory, then an
+  installed library. So `uses '../vendor/algol24-library/strings';` from `gen/`
+  reaches the pinned submodule, and `gen/Markup.a24` and the three callers all
+  do exactly that. **The extension is still appended**, so the path is written
+  without one: `'.../strings'`, never `'.../strings.a24'` — which answers
+  `no .../strings.a24.a24`.
+- ⚠️ **`uses` does not read `ALGOL24_LIB`.** For a *bare* name the search path
+  is the program's own directory, the working directory, `<binary>/lib` and
   `<binary>/../share/algol24/lib`. `ALGOL24_LIB` belongs to the *library* and
-  names where `graph` finds its glyph files. So nothing in `gen/` can reach a
-  unit under `vendor/` by name, which is most of why the library's `strings` is
-  not used here.
+  names where `graph` finds its glyph files. This is why the library is reached
+  by path here and not by name — not, as this file briefly claimed, because it
+  could not be reached at all.
 - ⚠️ **`ReadFile`, `ReadLines` and `WriteFile` are OURS, in
   `gen/Template.a24`** — not built-ins. File I/O in the language is the
   `TextFile` resource; those three wrap it. A program that calls them without
   `uses Template` fails with `Undefined variable 'ReadFile'`.
-- ⚠️ **`Strings.a24` and the library's `strings.a24` are the same filename on
-  macOS.** A case-insensitive filesystem cannot hold both in one directory, and
-  `cp` resolves the collision by silently clobbering one with the other.
+- ⚠️ **TWO UNITS WHOSE NAMES DIFFER ONLY IN CASE BREAK TWO OF THE THREE
+  PROCESSORS.** This is `D-1` in `DEFECTS-FOUND.md`, met for real: `unit
+  Strings` beside the library's `unit strings`. The interpreter is correct;
+  `algvm` loses the second unit and raises `Undefined variable`; and
+  `algc --compile` names each emitted C file after its unit, so `strings.c`
+  overwrote `Strings.c` and the build died on five undeclared functions. Hence
+  `gen/Markup.a24` — a rename, which is the way round it and not the fix. A
+  case-insensitive filesystem also cannot hold both files in one directory, and
+  `cp` resolves that by silently clobbering one with the other.
 - ⚠️ **The vendored `algc` has no foreign calls.** `bootstrap/build.sh` builds
   without `--ffi` on purpose, so a library unit reaching SDL runs under `algvm`
   and not under the compiler the site builds with — `Foreign calls are not

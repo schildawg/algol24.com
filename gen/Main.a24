@@ -9,9 +9,10 @@
 /// So the rules the reference states and the words it colours both describe the
 /// compiler that generated the page.
 uses Template;
-uses Strings;
+uses Markup;
 uses Markdown;
 uses Highlight;
+uses '../vendor/algol24-library/strings';
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
 /// both ways: 'v0.2.3' in the hero, and 'algvm 0.2.3' where the install section

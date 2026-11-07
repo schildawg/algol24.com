@@ -1,3 +1,6 @@
 [submodule "vendor/algol24"]
 	path = vendor/algol24
 	url = https://github.com/schildawg/algol24.git
+[submodule "vendor/algol24-library"]
+	path = vendor/algol24-library
+	url = https://github.com/schildawg/algol24-library.git

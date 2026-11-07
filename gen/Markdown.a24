@@ -102,6 +102,28 @@ begin
     Exit Found;
 end
 
+/// Every rule a document DECLARES, mapped to itself.
+///
+/// Targets answers the same for the specification, along with its cases. This
+/// one is for pointing at the specification from somewhere else: the opcode
+/// reference's citations are checked against the rules the pinned spec really
+/// declares, so a citation of a rule that does not exist stays plain text
+/// rather than becoming a link to nothing.
+function RuleTargets (Lines : List) : Map;
+var
+    Found := Map();
+
+begin
+    for var Raw in Lines do
+    begin
+        var Id := RuleId(Raw);
+
+        if Id <> '' then Found.Put(Id, Id);
+    end
+
+    Exit Found;
+end
+
 /// The path a citation names, or '' when the line does not carry one.
 ///
 /// A citation is an indented line whose kind fills a thirteen-column field and
@@ -199,6 +221,23 @@ end
 ///
 /// The rule's own paragraph links to itself, which is deliberate: the bold
 /// identifier at the head of a rule is the thing a reader wants the address of.
+/// Where a rule citation points, prefixed to the '#ID'.
+///
+/// ⚠️ EMPTY for the specification itself, which is the only document that
+/// declares the rules it cites: its citations are same-page anchors and must
+/// stay that way. The opcode reference cites 65 rules it does not contain, and
+/// the library reference three, so theirs point at '/reference/' -- the one
+/// page that has them. A module-level variable rather than a parameter because
+/// the alternative is threading it through Blocks, Table, Row, Bullets, Indent
+/// and Inline, none of which has any business knowing.
+var RuleBase := '';
+
+/// Points every rule citation rendered from here on at the given page.
+procedure LinkRulesTo (Base : String);
+begin
+    RuleBase := Base;
+end
+
 function LinkRules (Text : String, Refs : Map) : String;
 var
     B     := Buffer();
@@ -218,12 +257,69 @@ begin
         if (Id <> '') and Refs.Contains(Id) then
         begin
             B.Append(Copy(Text, Start, At - Start));
-            B.Append('<a class="rule" href="#' + Id + '">[' + Id + ']</a>');
+            B.Append('<a class="rule" href="' + RuleBase + '#' + Id + '">[' + Id + ']</a>');
 
             Start := Shut + 1;
             At    := Pos(Text, '[', Start);
         end
         else At := Pos(Text, '[', At + 1);
+    end
+
+    B.Append(Copy(Text, Start, Length(Text) - Start));
+
+    Exit B.Text;
+end
+
+/// Markdown's inline links, which exactly one of the three documents uses.
+///
+/// ⚠️ THE SPECIFICATION AND THE OPCODE REFERENCE CONTAIN NONE -- zero '](' 
+/// between them -- which is why this reader went three releases without the
+/// syntax and nothing noticed. The library reference has 850: its index is 154
+/// of them and every entry closes with a 'See also' list. Rendered by a reader
+/// that cannot read them they would come out as literal brackets, which is the
+/// loudest available way to be wrong.
+///
+/// Only the two-part form is read. Reference-style links, and a title inside
+/// the parentheses, are written by none of the three -- and a branch no
+/// document exercises is a branch no test covers either.
+///
+/// ⚠️ Runs AFTER the code spans have been lifted out, so a link whose text is
+/// `Abs` arrives here holding the placeholder rather than the backticks. That
+/// is why the text is copied through untouched instead of being rendered: it
+/// has already been rendered, and is put back together by the caller.
+function Links (Text : String) : String;
+var
+    B     := Buffer();
+    Start := 0;
+    At    := 0;
+
+begin
+    At := Pos(Text, '[', 0);
+
+    while At >= 0 do
+    begin
+        var Shut := Pos(Text, ']', At + 1);
+        var Made := False;
+
+        if (Shut >= 0) and (Shut + 2 < Length(Text)) and (Text[Shut + 1] = '(') then
+        begin
+            var Close := Pos(Text, ')', Shut + 2);
+
+            if Close >= 0 then
+            begin
+                var Shown  := Copy(Text, At + 1, Shut - At - 1);
+                var Target := Copy(Text, Shut + 2, Close - Shut - 2);
+
+                B.Append(Copy(Text, Start, At - Start));
+                B.Append('<a href="' + Target + '">' + Shown + '</a>');
+
+                Start := Close + 1;
+                At    := Pos(Text, '[', Start);
+                Made  := True;
+            end
+        end
+
+        if not Made then At := Pos(Text, '[', At + 1);
     end
 
     B.Append(Copy(Text, Start, Length(Text) - Start));
@@ -420,7 +516,11 @@ begin
     end
     else Held.Append(Tail);
 
-    var Marked := LinkRules(Emphasis(Held.Text), Refs);
+    // ⚠️ LinkRules FIRST. A rule citation is '[EXP-017]' with nothing in
+    // parentheses after it, so neither pass can claim a bracket the other
+    // wants -- but running the links first would turn '[Abs](#abs)' into an
+    // anchor whose href LinkRules would then go hunting through.
+    var Marked := Links(LinkRules(Emphasis(Held.Text), Refs));
 
     At := Pos(Marked, Char(1), 0);
     Start := 0;
@@ -792,16 +892,22 @@ begin
     Exit Out.Text;
 end
 
-/// The chapters and their sections, as a nested list of links.
+/// The groups and their entries, as a nested list of links.
 ///
-/// h2 is a chapter and h3 a section. h1 is the document's title and h5 names a
-/// case, and 239 case names do not belong in a table of contents.
+/// ⚠️ WHICH LEVELS THOSE ARE IS NOT THE SAME IN EVERY DOCUMENT, and reusing
+/// one answer loses headings silently. The specification groups at h2 and
+/// enumerates at h3. The opcode reference is a level shallower -- 19 h1 groups
+/// over 80 h2 entries -- so reading h2 and h3 there would list every mnemonic
+/// flat and drop all 19 group names without a word. The library reference has
+/// no groups at all: 154 entries at h2, alphabetically.
+///
+/// h5 names a case, and 239 case names do not belong in a table of contents.
 ///
 /// ⚠️ The entries are rendered with an EMPTY reference map. A heading holding a
 /// rule identifier would otherwise put a link inside a link, which is not
 /// something HTML has an opinion about so much as a thing browsers each guess
 /// at differently.
-function Contents (Lines : List) : String;
+function ContentsOf (Lines : List, Group : Integer, Entry : Integer) : String;
 var
     B       := Buffer();
     Chapter := False;
@@ -814,12 +920,12 @@ begin
     begin
         var L := HeadingLevel(Raw);
 
-        if (L = 2) or (L = 3) then
+        if (L = Group) or (L = Entry) then
         begin
             var Head := Trim(Copy(Raw, L, Length(Raw) - L));
             var Link := '<a href="#' + Slug(Head) + '">' + Inline(Head, Map()) + '</a>';
 
-            if L = 2 then
+            if L = Group then
             begin
                 if Sub then B.Append('</ol>' + #10);
                 if Chapter then B.Append('</li>' + #10);
@@ -848,11 +954,26 @@ begin
     Exit B.Text;
 end
 
+/// The specification's own convention: chapters at h2, sections at h3.
+function Contents (Lines : List) : String;
+begin
+    Exit ContentsOf(Lines, 2, 3);
+end
+
 /// The lines of a Markdown document rendered as HTML, with source highlighted
 /// against the given keyword table.
 function RenderWith (Lines : List, Words : Map) : String;
 begin
     Exit Blocks(Lines, Targets(Lines), Words);
+end
+
+/// The same, against a reference map prepared elsewhere.
+///
+/// A document that cites rules it does not declare needs the citing targets to
+/// come from the document that DOES declare them, which Targets cannot know.
+function RenderUsing (Lines : List, Refs : Map, Words : Map) : String;
+begin
+    Exit Blocks(Lines, Refs, Words);
 end
 
 /// The same, with nothing treated as a keyword.
@@ -889,6 +1010,47 @@ end
 test 'Render Makes A Heading At Its Level';
 begin
     AssertEqual('<h2 id="notation">Notation</h2>' + #10, One('## Notation'));
+end
+
+test 'Inline Reads A Markdown Link';
+begin
+    AssertEqual('see <a href="#abs">Abs</a> for it',
+                Inline('see [Abs](#abs) for it', Map()));
+end
+
+test 'Inline Reads A Link Whose Text Is Code';
+begin
+    AssertEqual('<a href="#trim"><code>Trim</code></a>',
+                Inline('[`Trim`](#trim)', Map()));
+end
+
+test 'Inline Leaves A Bracket That Is Not A Link Alone';
+begin
+    AssertEqual('a [plain] bracket', Inline('a [plain] bracket', Map()));
+end
+
+test 'Inline Reads Two Links In One Line';
+begin
+    AssertEqual('<a href="#a">one</a> and <a href="#b">two</a>',
+                Inline('[one](#a) and [two](#b)', Map()));
+end
+
+test 'A Rule Citation Beats A Link And Can Leave The Page';
+begin
+    var Refs := Map();
+    Refs.Put('EXP-017', 'EXP-017');
+
+    LinkRulesTo('/reference/');
+
+    AssertEqual('<a class="rule" href="/reference/#EXP-017">[EXP-017]</a>',
+                Inline('[EXP-017]', Refs));
+
+    // ⚠️ Put back, because it is module-level state and the tests below this
+    // one expect the specification's own same-page anchors.
+    LinkRulesTo('');
+
+    AssertEqual('<a class="rule" href="#EXP-017">[EXP-017]</a>',
+                Inline('[EXP-017]', Refs));
 end
 
 test 'Render Joins The Lines Of A Paragraph';

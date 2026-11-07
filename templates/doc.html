@@ -1,9 +1,17 @@
 <!doctype html>
+<!--
+  ⚠️ ONE template for all three rendered documents -- the language
+  specification, the opcode reference and the library reference. They want the
+  same chrome, the same table of contents and the same pre-paint script, and a
+  second copy of any of that is a second thing to keep in step. The title, the
+  description and the canonical URL are the only things that differ, so they
+  are the only things that are placeholders.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="The Algol-24 language reference: {{RULES}} numbered rules, each claimed by a case that runs under both processors.">
+<meta name="description" content="{{DESC}}">
 
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -11,10 +19,10 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
 <meta property="og:type" content="article">
-<meta property="og:title" content="Algol-24 — Reference">
-<meta property="og:description" content="The Algol-24 language reference: {{RULES}} numbered rules, each claimed by a case that runs under both processors.">
+<meta property="og:title" content="{{TITLE}}">
+<meta property="og:description" content="{{DESC}}">
 <meta property="og:image" content="https://algol24.com/og-image.png">
-<meta property="og:url" content="https://algol24.com/reference/">
+<meta property="og:url" content="{{URL}}">
 <meta name="twitter:card" content="summary_large_image">
 
 <!-- Paints the browser chrome to match, in whichever theme is active. -->
@@ -23,7 +31,7 @@
 
 {{BOOT}}
 
-<title>Algol-24 — Reference</title>
+<title>{{TITLE}}</title>
 
 <style>
 {{STYLE}}

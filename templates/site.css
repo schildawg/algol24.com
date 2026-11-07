@@ -361,6 +361,30 @@
   }
   .fact span { font-size: 13px; color: var(--muted); }
 
+  /* ---- the library's units -------------------------------------------- */
+  /* Ten rows of name and gloss, two columns where there is room and one where
+     there is not. No tokens of its own: the themed-colour check in build.sh
+     holds every declared token to all three blocks, and a rule that borrows
+     --rule and --muted has nothing to declare. */
+  .units {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0 28px;
+    margin-top: 4px;
+  }
+  .unit {
+    display: flex; gap: 10px;
+    padding: 6px 0;
+    border-top: 1px solid var(--panel-line);
+    font-size: 14px;
+  }
+  .unit b {
+    font-family: var(--mono); font-weight: 600;
+    color: var(--rule);
+    min-width: 62px;
+  }
+  .unit span { color: var(--muted); }
+
   /* ---- name note ----------------------------------------------------- */
   .note {
     border-left: 3px solid var(--rule);
@@ -428,6 +452,17 @@
   }
 
   .ref h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 680; margin: 0 0 22px; }
+  /* ⚠️ The opcode reference puts 19 GROUP headings at h1, a level above its
+     entries, where the other two documents have exactly one h1 each -- their
+     title. Sized as page titles those 19 would shout; :first-of-type keeps the
+     title large and turns the rest into dividers, and does nothing at all to a
+     document that has only one. */
+  .ref h1:not(:first-of-type) {
+    font-size: 24px; font-weight: 660;
+    margin: 64px 0 18px; padding-top: 22px;
+    border-top: 1px solid var(--panel-line);
+  }
+
   .ref h2 { font-size: 26px; font-weight: 660; margin: 46px 0 14px; }
   .ref h3 { font-size: 19px; font-weight: 640; margin: 32px 0 10px; }
   /* ⚠️ h5:not(.case) -- a bare h5 rule has the same specificity as h5.case and,

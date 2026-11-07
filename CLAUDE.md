@@ -19,8 +19,12 @@ obtainable. The confusion is easy to make and has already been made once.
 ./build.sh --test          # the generator's own test blocks
 brand/build.sh             # svg/ -> brand/dist/  (macOS only; needs qlmanage)
 
-vendor/algol24/algc gen/Main.a24            # generate directly
-vendor/algol24/algc --test gen/Template.a24 # one module's tests
+vendor/algol24/bootstrap/algc gen/Main.a24            # generate directly
+vendor/algol24/bootstrap/algc --test gen/Markdown.a24 # one module's tests
+
+vendor/algol24/vm/build.sh                            # -> vm/algvm (wants libffi)
+vendor/algol24/vm/algvm gen/Main.a24                  # the same site, third processor
+vendor/algol24/vm/algvm --test gen/Main.a24           # the suite, on the machine
 ```
 
 There is no per-test filter: the unit is a file. `--test` is transitive over
@@ -42,21 +46,24 @@ the `{{...}}` placeholder lines. Both hold today.
 
 ```
 templates/index.html      ──┐                 ┌──> site/index.html
-templates/reference.html  ──┤                 │
-templates/site.css        ──┤─> gen/Main.a24 ─┤
-templates/masthead.html   ──┤                 │
-templates/boot.html       ──┤                 └──> site/reference/index.html
-templates/theme.html      ──┘
-                             │
+templates/doc.html        ──┤                 │
+templates/site.css        ──┤                 ├──> site/reference/index.html
+templates/masthead.html   ──┤─> gen/Main.a24 ─┤      (vendor/algol24/spec)
+templates/boot.html       ──┤                 │
+templates/theme.html      ──┘                 ├──> site/opcodes/index.html
+                             │                │      (vendor/algol24/vm)
+                             │                │
+                             │                └──> site/library/index.html
+                             │                       (vendor/algol24-library)
                              ├── gen/Template.a24    read and write
                              ├── gen/Strings.a24     Trim, StartsWith, Replace, Split
-                             ├── gen/Markdown.a24    the reader, and the reference
+                             ├── gen/Markdown.a24    the reader, and all three documents
                              └── gen/Highlight.a24   .a24 and console colouring
 ```
 
-**The last four templates are partials, and there is one copy of each.** Both
-pages need the same palette, masthead, pre-paint script and theme switch, and a
-second copy of any of them is a second thing to keep in step. `Shared` in
+**The last four templates are partials, and there is one copy of each.** All
+four pages need the same palette, masthead, pre-paint script and theme switch,
+and a second copy of any of them is a second thing to keep in step. `Shared` in
 `Main.a24` substitutes them.
 
 ⚠️ **`templates/site.css` is the stylesheet and `prototype/index.html` still
@@ -72,13 +79,27 @@ scanner, so the rules it states and the keywords it colours both describe the
 compiler the rest of the site describes.
 
 `vendor/algol24` is a submodule doing **two jobs at once**: its `bootstrap/`
-builds `algc`, and its `ALGOL-24.md` and `README.md` are the source text for the
-Reference and Tour pages. One pinned commit, so the documentation on the site
-cannot drift from the compiler that generated it.
+builds `algc`, and its `spec/ALGOL-24.md` and `vm/REFERENCE.md` are the source
+text for the Reference and Opcodes pages. One pinned commit, so the
+documentation on the site cannot drift from the compiler that generated it.
 
-⚠️ **Pin to a release tag, because a pin can vanish.** The submodule tracks
-`v0.1.6`. An earlier pin, `01b2778`, was rewritten out of the compiler
-repository's history, and from then on `actions/checkout` failed with
+⚠️ **There are TWO submodules now, pinned to two different releases.**
+`vendor/algol24-library` is at **v0.1.0** where the compiler is at **v0.2.3**,
+and that is not drift: the library is a *user* of the language rather than part
+of it, with its own repository and its own releases. Its `REFERENCE.md` is the
+source of the Library page, on the same terms — the page describes a library
+somebody can actually install.
+
+⚠️ **`VERSION` lives in `compiler/Release.a24`, not `compiler/Main.a24`.** It
+moved in v0.2.2, when `algvm` learned `--version` and the two binaries had to
+read one number. `build.sh` reads it to decide whether a stale `algc` needs
+rebuilding; pointed at the old path it answers **empty**, compares unequal to
+whatever `algc` reports, and rebuilds the compiler on every single run. Slow
+rather than wrong, and silent either way.
+
+⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
+`v0.2.3` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
+out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
 get garbage-collected; a branch commit can.
@@ -140,13 +161,50 @@ Three more things that are only visible by reading several files at once:
   not need the tools that made them. Never add it to `.gitignore`; regenerate on
   a Mac and commit the PNGs.
 
+## Three documents, one renderer
+
+⚠️ **The pages are built from three Markdown documents that do not share a
+convention, and `gen/Markdown.a24` had to be parameterized for each.** Pointing
+the renderer at a new document and hoping is how headings vanish silently.
+
+| | groups | entries | links | rule citations |
+| --- | --- | --- | --- | --- |
+| `spec/ALGOL-24.md` | `##` chapters | `###` sections | 0 | declares them |
+| `vm/REFERENCE.md` | `#` (19) | `##` (80 opcodes) | 0 | cites 65 it lacks |
+| library `REFERENCE.md` | none | `##` (154) | **850** | cites 3 it lacks |
+
+- `ContentsOf(Lines, Group, Entry)` takes the levels. `Contents` keeps the
+  specification's 2-and-3 for the tests. Read as 2-and-3, the opcode reference
+  lists 80 flat mnemonics and **drops all 19 group names without a word**.
+- `LinkRulesTo(Base)` says where a citation points. Empty for the
+  specification, which declares its own rules and wants same-page anchors;
+  `/reference/` for the other two, whose citations are checked against
+  `RuleTargets` of the **pinned spec**, so a citation of a rule that does not
+  exist stays plain text rather than linking to nothing.
+- ⚠️ **`Links` exists because the library reference has 850 of them and the
+  other two have zero.** The reader went three releases without Markdown link
+  syntax and nothing noticed. It runs *after* `LinkRules` — a rule citation is
+  `[EXP-017]` with no parentheses after it, so neither pass can take a bracket
+  the other wants.
+- ⚠️ `.ref h1:not(:first-of-type)` is what keeps the opcode page's 19 group
+  headings from being sized as page titles. The other two documents have one
+  h1 each, so the rule does nothing to them.
+
+**`templates/doc.html` is one template for all three pages.** Same chrome, same
+contents list, same pre-paint script; only `{{TITLE}}`, `{{DESC}}` and
+`{{URL}}` differ. It used to be `templates/reference.html`, back when there was
+one document.
+
 ## The state of it
 
-The generator builds **two pages**: the home page by placeholder substitution,
-and the language reference by reading the pinned `spec/ALGOL-24.md` through
-`gen/Markdown.a24` and colouring it with `gen/Highlight.a24`, whose keyword set
-is read out of the pinned `Scanner.a24`. The whole chain — `cc` → seed → `algc`
-→ generator → site → Pages — works today.
+The generator builds **four pages**: the home page by placeholder
+substitution, and three rendered documents — the language reference from the
+pinned `spec/ALGOL-24.md`, the opcode reference from the pinned
+`vm/REFERENCE.md`, and the library reference from the pinned library's
+`REFERENCE.md` — all three through `gen/Markdown.a24`, coloured by
+`gen/Highlight.a24` whose keyword set is read out of the pinned `Scanner.a24`.
+The whole chain — `cc` → seed → `algc` → generator → site → Pages — works
+today.
 
 The Markdown reader was unblocked by v0.1.2's `Pos` start index,
 `ToUpper`/`ToLower` and the directory built-ins; `gen/Strings.a24` builds
@@ -157,14 +215,30 @@ wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec �
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 291. The other two figures in that row are still
-literals in the template: unit tests (245) and cases (259). Re-check both on a
-bump — and the second one has a trap of its own.
+authority. The two now agree at 292. **`OpcodeCount` is the second derived
+figure** and was added for the same reason: three sources said 78, 80 and 81,
+and the entries in the document being rendered are the only count that cannot
+drift from the page a reader is looking at. The remaining literals in the
+template are unit tests (247) and cases (270). Re-check both on a bump — and
+the second one has a trap of its own.
 
-The unit tests are what `./test.sh` prints in the compiler repository (*All 245
-tests passed*). **Cases is the whole corpus, defects included** — `conformance/`
-plus `refusals/` plus the checked-in `defects/`, which is exactly the figure
-`./conform.sh` reports as *the language: 259 passed*. Read it off that line
+⚠️ **`OP_COUNT` is a sentinel, which is why the opcode count had three
+answers.** `vm/OpCode.a24` declares 81 `const OP_`; the last ends the set and is
+not an instruction, so there are **80**. `vm/REFERENCE.md`'s own opening
+sentence says 78, in the one document whose stated discipline is that it never
+argues with `OpCode.a24`. And `./vm/reference.sh` prints `described: 79` on one
+line and `variable-width: 1` on the next — reading only the first is how 79
+nearly reached the page.
+
+The unit tests are what `./test.sh` prints in the compiler repository (*All 247
+tests passed*). The machine has its own suite and its own root: `./test.sh
+vm/Vm.a24` reports 140, and `algc --test vm/run.a24` is **not** the way to it —
+that raises `Reset failed: no file has been assigned.`, because `run.a24` is the
+program and expects a file to run.
+
+**Cases is the whole corpus, defects included** — `conformance/` plus
+`refusals/` plus the checked-in `defects/`, which is exactly the figure
+`./conform.sh` reports as *the language: 270 passed*. Read it off that line
 rather than counting two directories and forgetting the third.
 
 ⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
@@ -234,8 +308,24 @@ ignored, and is emitted fresh each run because the directory is built with
 `cc *.c` and a renamed module would otherwise leave its old `.c` behind.
 
 ⚠️ `build.sh --test` still runs the tests **interpreted**, so nothing compares
-the two back ends here. The guard that would catch a divergence is the
+the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
+
+**There are three processors now, and the generator agrees with itself under
+all of them.** Measured on this machine, building all four pages:
+
+| | |
+| --- | --- |
+| compiled to C | **0.08s** |
+| bytecode, `algvm gen/Main.a24` | **3.78s** |
+| tree-walking, `algc gen/Main.a24` | **20.96s** |
+
+Byte-identical output from all three, and the 89 tests pass under `algvm
+--test` as well. Worth re-running on a pin bump, because this is a far better
+exercise of a processor than any single corpus case: 2,250 lines of Algol-24
+reading 27,000 lines of Markdown. `--collect 100` — collecting every hundred
+instructions, 36× slower — also produces identical output, which is the
+collector check worth having.
 
 ## Two traps this project has already hit
 
@@ -330,6 +420,27 @@ Beyond the language reference, what bites when writing the generator:
   followed by re-`Add` moves the element to the **end**. `ALGOL-24.md` §5 claims
   order is unspecified and is wrong — §7 is correct.
 - `uses` is not transitive; every file declares its own dependencies.
+- ⚠️ **`uses` does NOT read `ALGOL24_LIB`.** The search path is the program's
+  own directory, the working directory, `<binary>/lib`, and
+  `<binary>/../share/algol24/lib`. `ALGOL24_LIB` belongs to the *library* and
+  names where `graph` finds its glyph files. So nothing in `gen/` can reach a
+  unit under `vendor/` by name, which is most of why the library's `strings` is
+  not used here.
+- ⚠️ **`ReadFile`, `ReadLines` and `WriteFile` are OURS, in
+  `gen/Template.a24`** — not built-ins. File I/O in the language is the
+  `TextFile` resource; those three wrap it. A program that calls them without
+  `uses Template` fails with `Undefined variable 'ReadFile'`.
+- ⚠️ **`Strings.a24` and the library's `strings.a24` are the same filename on
+  macOS.** A case-insensitive filesystem cannot hold both in one directory, and
+  `cp` resolves the collision by silently clobbering one with the other.
+- ⚠️ **The vendored `algc` has no foreign calls.** `bootstrap/build.sh` builds
+  without `--ffi` on purpose, so a library unit reaching SDL runs under `algvm`
+  and not under the compiler the site builds with — `Foreign calls are not
+  available in this build`. The library's `.so` shims are gitignored build
+  products and are absent from a fresh submodule clone until its `build.sh`
+  runs.
+- There is no range form in a `for`: `for var I in 1 .. 20 do` is
+  `Expect 'do' after 'for ... in' clause.` Walk a collection, or use `while`.
 - The output directory must already exist. `build.sh` mkdirs first.
 - `ReadFile` joins lines with `#10` between them and never after the last, so
   `WriteFile` closes with `WriteLn`, not `Write`, to put the file's final
@@ -384,7 +495,18 @@ closed"*: it changes **only on measured demand from a project using it, and the
 measurement goes in the proposal**. Write the rule, not a count of exceptions to
 it — a count is a hostage to the next release.
 
-Do not call it a toy language. **v0.1.x is the feature-complete alpha**: the
-language is done, and *alpha* means only that the library written in Algol-24 is
-still to come. State the engineering plainly and without adjectives, and do not
-manufacture an adoption story it does not have yet.
+⚠️ **`pre-1.0` is off the page, and *alpha* is spent.** Both meant one thing:
+a library written in Algol-24 rather than bolted into the runtime. It shipped as
+`algol24-library` v0.1.0, so the hero reads `v0.2.3 · library v0.1.0 · on
+Homebrew` and the library band says in as many words that this is what alpha
+meant. Do not reintroduce a hedge for something that has arrived.
+
+Do not call it a toy language. State the engineering plainly and without
+adjectives, and do not manufacture an adoption story it does not have yet.
+
+⚠️ **The site states no performance multiple for the machine.** The compiler
+repository publishes 6.9× the tree-walker for `Fib (27)` (0.91s against 6.24s);
+measured here with the pinned binaries it is 1.38s against 6.77s, or **4.9×**.
+The interpreter halves agree within 8% and the machine halves do not, so the
+page uses the figures it measured about **itself** — the three-processor table
+above — and the discrepancy went to the author rather than onto the page.

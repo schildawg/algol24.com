@@ -14,11 +14,17 @@ uses Markdown;
 uses Highlight;
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
-/// both ways: 'v0.1.6' in the hero, and 'algc 0.1.6' where the install section
+/// both ways: 'v0.2.3' in the hero, and 'algvm 0.2.3' where the install section
 /// quotes what --version actually prints. One constant, and the template adds
 /// the 'v' where it wants one.
-const Release := '0.1.6';
-const Status  := 'pre-1.0';
+///
+/// ⚠️ TWO numbers now, and they are independent on purpose. The compiler and
+/// the machine share one -- v0.2.2 made them read one constant, because a
+/// version in two places is two answers to one question -- but the library
+/// versions itself, being a USER of the language rather than part of it. The
+/// hero shows both rather than implying one.
+const Release := '0.2.3';
+const Library := '0.1.0';
 const Tap     := 'schildawg/algol24';
 /// ⚠️ Repo, not Source. 'uses' brings a unit's names in unqualified, and
 /// Highlight already has a Source -- the function that highlights a line. The
@@ -45,10 +51,20 @@ const Theme := 'templates/theme.html';
 /// The reference is built from the pinned specification and the pinned
 /// scanner: the rules it states and the keywords it colours both come from the
 /// compiler this page describes.
-const Reference := 'templates/reference.html';
-const RefInto   := 'site/reference/index.html';
-const RefDir    := 'site/reference';
-const Scanner   := 'vendor/algol24/compiler/Scanner.a24';
+///
+/// ⚠️ ONE template for all three documents. They want the same chrome, the
+/// same contents list and the same pre-paint script; only the title, the
+/// description and the canonical URL differ, and those are placeholders.
+const Doc     := 'templates/doc.html';
+const Scanner := 'vendor/algol24/compiler/Scanner.a24';
+
+/// The other two documents, each from the pin of the thing it documents.
+///
+/// ⚠️ The library is a SECOND submodule, pinned to its own release, because
+/// its version is its own: v0.1.0 against the compiler's v0.2.3. Rendering it
+/// from a pin is what stops the page describing a library nobody can install.
+const OpRef  := 'vendor/algol24/vm/REFERENCE.md';
+const LibRef := 'vendor/algol24-library/REFERENCE.md';
 
 /// The number of rules in the specification, counted rather than written down.
 ///
@@ -80,8 +96,32 @@ begin
     Exit Str(N);
 end
 
+/// The number of opcodes, counted rather than written down.
+///
+/// ⚠️ THREE SOURCES DISAGREED, AND TWO OF THEM WERE WRONG. `vm/OpCode.a24`
+/// declares 81 `const OP_`, but `OP_COUNT` is the sentinel that ends the set
+/// and is not an instruction. The reference's own opening sentence says 78 --
+/// in the one document whose stated discipline is that it never argues with
+/// `OpCode.a24`. `OVERVIEW.md` says 80 and is right.
+///
+/// So this counts the entries in the document being rendered, which is the
+/// only figure that cannot drift from the page the reader is looking at: one
+/// '## OP_' heading per opcode, and the prefixes `OP_LONG` names in prose do
+/// not get one.
+function OpcodeCount () : String;
+var
+    N := 0;
+
+begin
+    for var L in ReadLines(OpRef) do
+        if StartsWith(L, '## OP_') then N := N + 1;
+
+    Exit Str(N);
+end
+
 /// Counted once, though it is cheap now that the walk reads lines directly.
-var Rules := '';
+var Rules   := '';
+var Opcodes := '';
 
 /// Makes a directory, and does not mind one that is already there.
 ///
@@ -113,26 +153,104 @@ begin
     Exit Page;
 end
 
+/// Writes one rendered document, chrome and all.
+procedure WriteDoc (Dir : String, Into : String, Title : String,
+                    Desc : String, Url : String, Toc : String, Body : String);
+var
+    Page := '';
+
+begin
+    EnsureDir(Dir);
+
+    Page := Shared(ReadFile(Doc));
+    Page := Replace(Page, '{{TITLE}}', Title);
+    Page := Replace(Page, '{{DESC}}',  Desc);
+    Page := Replace(Page, '{{URL}}',   Url);
+    Page := Replace(Page, '{{TOC}}',   Toc);
+    Page := Replace(Page, '{{BODY}}',  Body);
+
+    WriteFile(Into, Page);
+
+    WriteLn('  ' + Into);
+end
+
 /// Renders the specification into the reference page.
+///
+/// ⚠️ The ONE document that declares the rules it cites, so its citations are
+/// same-page anchors: the link base stays empty here and is set for the other
+/// two. Chapters at h2, sections at h3.
 procedure RenderReference ();
 var
     Lines := List();
     Words := Map();
-    Page  := '';
 
 begin
-    EnsureDir(RefDir);
-
     Lines := ReadLines(Spec);
     Words := Keywords(ReadLines(Scanner));
 
-    Page := Shared(ReadFile(Reference));
-    Page := Replace(Page, '{{TOC}}',  Contents(Lines));
-    Page := Replace(Page, '{{BODY}}', RenderWith(Lines, Words));
+    LinkRulesTo('');
 
-    WriteFile(RefInto, Page);
+    WriteDoc('site/reference', 'site/reference/index.html',
+             'Algol-24 — Reference',
+             'The Algol-24 language reference: ' + Rules +
+             ' numbered rules, each claimed by a case that runs under all three processors.',
+             'https://algol24.com/reference/',
+             ContentsOf(Lines, 2, 3),
+             RenderUsing(Lines, Targets(Lines), Words));
+end
 
-    WriteLn('  ' + RefInto);
+/// Renders the bytecode reference into the opcodes page.
+///
+/// ⚠️ A LEVEL SHALLOWER than the specification: 19 groups at h1 over one entry
+/// per opcode at h2. Read as h2-and-h3 it would list every mnemonic flat and
+/// drop all 19 group names without a word about it.
+///
+/// ⚠️ It cites 65 rules it does not contain, so the citing targets come from
+/// the pinned SPECIFICATION and point at the page that has them. A citation of
+/// a rule the spec does not declare stays plain text rather than becoming a
+/// link to nothing -- which is also how a bad citation shows up.
+procedure RenderOpcodes ();
+var
+    Lines := List();
+    Words := Map();
+
+begin
+    Lines := ReadLines(OpRef);
+    Words := Keywords(ReadLines(Scanner));
+
+    LinkRulesTo('/reference/');
+
+    WriteDoc('site/opcodes', 'site/opcodes/index.html',
+             'Algol-24 — Opcodes',
+             'The Algol-24 bytecode reference: ' + Opcodes +
+             ' opcodes, one entry each, every encoding checked against the machine.',
+             'https://algol24.com/opcodes/',
+             ContentsOf(Lines, 1, 2),
+             RenderUsing(Lines, RuleTargets(ReadLines(Spec)), Words));
+end
+
+/// Renders the library reference into the library page.
+///
+/// ⚠️ NO GROUPS AT ALL -- 154 entries at h2, alphabetically, which is what a
+/// reference after Turbo Pascal's own looks like. Its 850 Markdown links are
+/// the reason this reader learned the syntax.
+procedure RenderLibrary ();
+var
+    Lines := List();
+    Words := Map();
+
+begin
+    Lines := ReadLines(LibRef);
+    Words := Keywords(ReadLines(Scanner));
+
+    LinkRulesTo('/reference/');
+
+    WriteDoc('site/library', 'site/library/index.html',
+             'Algol-24 — Library',
+             'The Algol-24 library reference: ten units, every routine and constant, and every example run.',
+             'https://algol24.com/library/',
+             ContentsOf(Lines, 2, 3),
+             RenderUsing(Lines, RuleTargets(ReadLines(Spec)), Words));
 end
 
 /// Renders one template into one output file.
@@ -146,7 +264,8 @@ begin
     Page := Shared(Page);
 
     Page := Replace(Page, '{{RELEASE}}', Release);
-    Page := Replace(Page, '{{STATUS}}',  Status);
+    Page := Replace(Page, '{{LIBRARY}}', Library);
+    Page := Replace(Page, '{{OPCODES}}', Opcodes);
     Page := Replace(Page, '{{TAP}}',     Tap);
 
     WriteFile(Into, Page);
@@ -155,12 +274,15 @@ begin
 end
 
 begin
-    Rules := RuleCount();
+    Rules   := RuleCount();
+    Opcodes := OpcodeCount();
 
     WriteLn('generating:');
 
     RenderPage('templates/index.html', 'site/index.html');
     RenderReference();
+    RenderOpcodes();
+    RenderLibrary();
 
     WriteLn('done.');
 end

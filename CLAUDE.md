@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.2.4` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
+`v0.2.5` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -356,13 +356,29 @@ the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
 
 **There are three processors now, and the generator agrees with itself under
-all of them.** Measured on this machine, building all four pages:
+all of them.** Measured on this machine at v0.2.5, building all four pages:
 
 | | |
 | --- | --- |
-| compiled to C | **0.08s** |
-| bytecode, `algvm gen/Main.a24` | **3.78s** |
-| tree-walking, `algc gen/Main.a24` | **20.96s** |
+| compiled to C | **0.15s** |
+| bytecode, `algvm gen/Main.a24` | **3.52s** |
+| bytecode, `--algol-loop` | **5.26s** |
+| tree-walking, `algc gen/Main.a24` | **41.5s** |
+
+⚠️ **RE-MEASURE THE WHOLE TABLE OR NONE OF IT, in one sitting.** These numbers
+are machine- and session-relative, and comparing a fresh one against an old one
+invents regressions. This table read 0.08 / 3.78 / 20.96 at v0.2.3, and at
+v0.2.5 the compiled figure looked like an 88% regression — until v0.2.3's and
+v0.2.4's own binaries were rebuilt and run against the same documents and
+answered **0.15s each**. Three binaries agreeing means nothing regressed; the
+earlier session's machine was simply faster. The interpreter is the one real
+movement: 35.9s, 42.5s, 41.5s for v0.2.3, v0.2.4 and v0.2.5 on identical input,
+which is the collector v0.2.4 gave it costing 18% on a workload that allocates
+this hard rather than the ~9% its notes measured elsewhere.
+
+`--algol-loop` turns off the hand-written C dispatch loop v0.2.5 introduced, so
+the pair above measures it: **1.49×** here, against the 1.51× the release
+claims. Worth keeping as an independent check of someone else's headline figure.
 
 Byte-identical output from all three, and the tests pass under `algvm --test`
 as well. Worth re-running on a pin bump, because this is a far better

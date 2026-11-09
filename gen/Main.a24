@@ -15,7 +15,7 @@ uses Highlight;
 uses '../vendor/algol24-library/strings';
 
 /// ⚠️ The release number WITHOUT its leading 'v', because the page needs it
-/// both ways: 'v0.2.4' in the hero, and 'algvm 0.2.4' where the install section
+/// both ways: 'v0.2.5' in the hero, and 'algvm 0.2.5' where the install section
 /// quotes what --version actually prints. One constant, and the template adds
 /// the 'v' where it wants one.
 ///
@@ -24,7 +24,7 @@ uses '../vendor/algol24-library/strings';
 /// version in two places is two answers to one question -- but the library
 /// versions itself, being a USER of the language rather than part of it. The
 /// hero shows both rather than implying one.
-const Release := '0.2.4';
+const Release := '0.2.5';
 const Library := '0.1.0';
 const Tap     := 'schildawg/algol24';
 /// ⚠️ Repo, not Source. 'uses' brings a unit's names in unqualified, and

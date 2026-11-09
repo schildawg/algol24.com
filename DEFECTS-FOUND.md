@@ -170,20 +170,26 @@ discipline that found the discrepancy.
   assigned.` `run.a24` is the machine's entry point and expects a file to run,
   so its tests are reached as `./test.sh vm/Vm.a24` (140). Correct behaviour,
   surprising route.
-- **The published 6.9× does not reproduce here**, and was never put on the
-  page. `Fib (27)` with the pinned binaries on this machine:
+- **The published 6.9× now reproduces, and then some.** This note recorded for
+  two releases that it did not, and v0.2.5 settled it. `Fib (27)` with the
+  pinned binaries on this machine, every row measured in one sitting:
 
-  | | v0.2.3 | v0.2.4 |
-  | --- | --- | --- |
-  | `algvm` | 1.38s | **1.35s** |
-  | `algc`, interpreted | 6.77s | **6.63s** |
-  | the ratio | 4.9× | **4.9×** |
+  | | v0.2.3 | v0.2.4 | v0.2.5 |
+  | --- | --- | --- | --- |
+  | `algvm` | 1.33s | 1.33s | **0.69s** |
+  | `algc`, interpreted | 6.55s | 6.60s | **6.53s** |
+  | the ratio | 4.9× | 5.0× | **9.5×** |
 
-  Re-measured at v0.2.4 because that release gave the interpreter a collector
-  for about 9% more time, which should have *widened* the gap and did not move
-  it. The interpreter half is within 8% of the published 6.24s; the machine
-  half is around 50% off the published 0.91s, which points at a differently
-  built `algvm` rather than at noise. The site states no multiple.
+  ⚠️ Every row above was measured in **one sitting**, against binaries built
+  from each tag, because the first draft of this table mixed a fresh row with
+  two from an earlier session — which is the mistake it exists to document.
+
+  The machine halved, exactly as the release notes say (1.35 → 0.69), and the
+  interpreter did not move. So the discrepancy was never a measurement fault
+  here: the published 0.91s belonged to a machine that had already had work the
+  pinned v0.2.3 and v0.2.4 binaries had not. The site still states no multiple,
+  because this one is the site's own and will move again.
+
 - **The library's `.so` shims are gitignored build products**, so a fresh
   submodule clone cannot run any FFI-backed unit until `./build.sh` runs in it.
   Combined with `bootstrap/build.sh` defaulting to no `--ffi`, a `uses graph`

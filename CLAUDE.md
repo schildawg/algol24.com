@@ -145,19 +145,34 @@ Three more things that are only visible by reading several files at once:
   all exist twice. A change to the build has to be made in both, or CI publishes
   something other than what you tested.
 - ⚠️ **CI has a step `build.sh` does not: *Agree with the other two
-  processors*.** It builds `algvm`, runs the 124 tests on it, regenerates the
-  site with it and **`diff -r`s that against the compiled site**. A
-  disagreement about one byte fails the job rather than deploying, because one
-  of the two processors would then be wrong. It is CI-only because it wants
-  `libffi` — `vm/build.sh` has no `--ffi` switch, a foreign call being a
-  feature of the language — and the local build deliberately needs nothing but
-  a C compiler. Run it by hand on a Mac, where the SDK has libffi:
+  processors*.** It builds `algvm`, runs the 124 tests on it, then regenerates
+  the site with the machine **and again with the tree-walking interpreter**,
+  and **`diff -r`s each against the compiled site**. Either disagreeing about
+  one byte fails the job rather than deploying, because one of the two would
+  then be wrong. It is CI-only because it wants `libffi` — `vm/build.sh` has no
+  `--ffi` switch, a foreign call being a feature of the language — and the
+  local build deliberately needs nothing but a C compiler. Run it by hand on a
+  Mac, where the SDK has libffi:
 
   ```sh
+  export ALG_TEXT_CHECK=1
   vendor/algol24/vm/build.sh && vendor/algol24/vm/algvm --test gen/Main.a24
   mv site site-cc && mkdir site && vendor/algol24/vm/algvm gen/Main.a24
+  diff -r site-cc site
+  rm -rf site && mkdir site && vendor/algol24/bootstrap/algc gen/Main.a24
   diff -r site-cc site && rm -rf site && mv site-cc site
   ```
+
+  ⚠️ **It checked only the machine until v0.2.7, so its name was a promise it
+  did not keep.** `D-3` was a wrong answer in the *interpreter* and reached a
+  release because nothing here ran that processor; it took a hand-run to find.
+  The interpreter costs about 43s locally and is the cheapest insurance
+  available against publishing a wrong answer.
+
+  ⚠️ **`ALG_TEXT_CHECK=1` is on for both runs**, at about 18% on the
+  interpreter (42.9s to 50.6s here). A byte diff says only that two processors
+  disagree; this says why, failing with both the cached length and the
+  recomputed one. It is what `D-3` would have tripped.
 
   ⚠️ The generator writes to `site/` and nowhere else, so the compiled run has
   to be moved aside rather than pointed elsewhere — and the step runs **before**
@@ -411,9 +426,9 @@ upstream passed and a half-megabyte render of mixed text found it.
 bump: it recomputes every cached length where the cache answers it and fails
 naming both. All three processors pass it over the full build.
 
-⚠️ **CI still does not compare the interpreter** — only the machine against the
-compiled site — which is why D-3 needed a hand-run to find. Adding the third
-comparison costs about 42 seconds a push and is an open decision.
+**CI compares the interpreter too, as of v0.2.7** — the machine *and* the
+tree-walker, each against the compiled site, both under `ALG_TEXT_CHECK=1`.
+That is the gap D-3 went through, closed.
 
 ## Two traps this project has already hit
 

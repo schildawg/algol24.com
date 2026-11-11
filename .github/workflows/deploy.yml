@@ -67,9 +67,24 @@ jobs:
         # ⚠️ THE POINT OF THIS STEP IS THAT IT CAN FAIL. The language has three
         # processors and all three must agree on every program; this generator
         # is 2,250 lines reading 27,000 lines of Markdown, which exercises one
-        # far harder than any single conformance case. If the machine and the
-        # compiled back end disagree about one byte of the published site, one
-        # of them is wrong and this job should go red rather than deploy.
+        # far harder than any single conformance case. If either of the other
+        # two disagrees with the compiled back end about one byte of the
+        # published site, one of them is wrong and this job should go red
+        # rather than deploy.
+        #
+        # ⚠️ IT CHECKED ONLY THE MACHINE UNTIL v0.2.7, so its own name was a
+        # promise it did not keep. D-3 was a wrong answer in the TREE-WALKER --
+        # one line of 27,875 two characters short -- and it reached a release
+        # because nothing here ran that processor. It took a hand-run to find.
+        # The interpreter is the slowest of the three and the comparison is the
+        # cheapest insurance available against shipping a wrong answer.
+        #
+        # ⚠️ ALG_TEXT_CHECK=1 is on for both runs, at about 18% on the
+        # interpreter. It recomputes every cached text length where the cache
+        # answers it and fails naming both answers, which is what D-3 looked
+        # like underneath: a character count keyed on where a string's bytes
+        # were, answered for a later string at the same address. A byte diff
+        # says only that two processors disagree; this says why.
         #
         # ⚠️ gnu11 again, for the same readlink reason as the algc step above:
         # vm/build.sh also defaults to -std=c11. And libffi is NOT optional
@@ -77,6 +92,7 @@ jobs:
         # of the language, so the machine refuses to build without one.
         env:
           CFLAGS: -std=gnu11 -O2
+          ALG_TEXT_CHECK: '1'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libffi-dev
@@ -88,15 +104,27 @@ jobs:
           vendor/algol24/vm/algvm --test gen/Main.a24
 
           # ⚠️ The generator writes to site/ and nowhere else, so the compiled
-          # run has to be moved aside rather than pointed somewhere. Put it
-          # back afterwards: the artifact uploaded below is the COMPILED site,
+          # run has to be moved aside rather than pointed somewhere. It is put
+          # back at the end: the artifact uploaded below is the COMPILED site,
           # which is what every other step has already checked.
           mv site site-cc
+
+          # The bytecode machine.
           mkdir -p site
           vendor/algol24/vm/algvm gen/Main.a24
 
           if ! diff -r site-cc site; then
             echo "::error::the bytecode machine and the C back end disagree about the site"
+            exit 1
+          fi
+
+          # And the tree-walking interpreter, which is where D-3 lived.
+          rm -rf site
+          mkdir -p site
+          vendor/algol24/bootstrap/algc gen/Main.a24
+
+          if ! diff -r site-cc site; then
+            echo "::error::the tree-walking interpreter and the C back end disagree about the site"
             exit 1
           fi
 

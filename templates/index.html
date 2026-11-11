@@ -395,15 +395,23 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          rather than a note. A defect's test is stranger still: it records the wrong
          behavior and passes for as long as that behavior lasts, turning red the day the
          defect is fixed.</p>
-      <p>None of which finds the bugs that a <em>program</em> finds. v0.2.4 is sixteen
+      <p>None of which finds the bugs that a <em>program</em> finds. v0.2.4 was sixteen
          defects, and not one of them was found by reading the compiler: every report came
          from a game of about twenty units, or from this website — both written in
          Algol-24 by people meeting the language as users of it. Five of the sixteen
          turned out to be one bug, and its worst shape read a program-level variable as an
          imported enumeration's member, so every assignment to it was discarded in
-         silence. A seventeenth was found while fixing the others, which nobody reported.</p>
+         silence.</p>
+      <p>The sweep has gained one since, and this site found it: a line of text coming
+         back two characters short, because a cache remembering how many
+         <em>characters</em> a string has was keyed on <em>where its bytes were</em>. That
+         was safe while text came from an allocator that never freed. Once a heap
+         recycled, a different string arriving at the same address was answered with the
+         old count — and only ever wrongly if the first one held a multi-byte character,
+         which is why it took half a megabyte of mixed text to see. v0.2.7 is that fix and
+         nothing else.</p>
 <pre>$ ./defects.sh
-<span class="out">0 reproducing, 16 fixed, of 16 checked</span></pre>
+<span class="out">0 reproducing, 17 fixed, of 17 checked</span></pre>
       <p>That harness is new, and it is the only one here written to <em>fail</em>: each
          report is reduced to the smallest program that shows it and run under whichever
          processors disagree, so the sweep goes green only when every one is fixed and

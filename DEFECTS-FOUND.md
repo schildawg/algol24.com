@@ -5,14 +5,15 @@ and by running the generator under all three processors. Written here rather
 than in `spec/DEFECTS.md` because that file wants an entry the compiler
 repository owns; these are reports, with reproductions, for whoever takes them.
 
-**One report is open: `D-3`, found at v0.2.6.** `D-1` and `D-2` were reported
-against v0.2.3, accepted, and fixed in **v0.2.4** — where they carry the
-numbering this file gave them. Each is verified below against the pinned
-binaries rather than taken on trust, which is the only reason a closed report is
-worth keeping.
+**Nothing here is open.** Three reports, all accepted and all fixed: `D-1` and
+`D-2` against v0.2.3, fixed in **v0.2.4**, and `D-3` against v0.2.6, fixed in
+**v0.2.7** — which contains that fix and nothing else. Each is verified below
+against the pinned binaries rather than taken on trust, which is the only reason
+a closed report is worth keeping.
 
-The compiler repository's `finished/PLAN-0.2.4.md` carries the root cause for
-each of those, and `./defects.sh` is the harness that holds all sixteen closed.
+All three carry the numbering this file gave them, upstream as well as here.
+`./defects.sh` now reports **17 fixed, of 17 checked**, D-3 having joined the
+sweep as *the text heap recycles an address and a cache kept the old answer*.
 
 ---
 
@@ -164,7 +165,7 @@ discipline that found the discrepancy.
 
 ---
 
-## D-3 — 🔴 OPEN at v0.2.6 — the tree-walker loses two characters of one string
+## D-3 — ✅ FIXED in v0.2.7 — a cached character count keyed on an address
 
 **Severity.** The published site is **not affected** and nothing is at risk
 today: the site is built by the compiled back end, which is correct, and CI
@@ -239,6 +240,52 @@ for one sweep in four hundred to be the one that matters.
 site against the machine's and not against the interpreter's. Adding the third
 comparison costs about 42 seconds a push and would have caught it. Worth
 deciding on rather than assuming.
+
+### Verified fixed, mechanism and all
+
+**The cause, in v0.2.7's words:** a cache remembering how many *characters* a
+string has, **keyed on where its bytes are**. Safe while text came from an
+allocator that never freed, since an address held one string for the life of the
+process. Once v0.2.6 gave text a recycling heap, a different string of the same
+**byte** length arriving at that address was answered with the old character
+count. The site's line was 41 bytes of ASCII landing on the block of a 41-byte
+line that held one em dash — 39 characters — and was told 39.
+
+⚠️ **It cannot show in text that is entirely ASCII**, where the two counts are
+equal and a stale answer is the same answer. That is why it survived a release:
+every gate upstream passed, and this is the program that renders half a megabyte
+of mixed text.
+
+**The original reproduction**, run twice at the new pin: `algc gen/Main.a24`
+produces output **byte-identical** to the compiled generator, and the line reads
+`pen draws in.` again. `algvm` agrees, and so does `algvm --collect 100`.
+
+**`ALG_TEXT_CHECK=1`**, new in v0.2.7, recomputes every cached length where the
+cache answers it and fails naming both. Run over the full four-page build under
+all three processors: nothing on stderr, output byte-identical each time. So no
+cached length disagrees with a recomputation anywhere in 27,875 lines.
+
+**And the mechanism reproduced directly**, because a verification that only
+re-runs the original cannot tell a fix from luck. 4,000 rounds of: allocate a
+41-byte string of 39 characters, ask its length, drop it, `Collect`, allocate a
+41-byte string of 41 characters, ask *its* length.
+
+| | wrong answers | first wrong length |
+| --- | --- | --- |
+| v0.2.6, interpreted | **4000 of 4000** | **39** |
+| v0.2.6, bytecode | **4000 of 4000** | **39** |
+| v0.2.6, `ALG_POISON=1` | 0 | — |
+| **v0.2.7, interpreted** | **0** | — |
+| **v0.2.7, bytecode** | **0** | — |
+
+Every round of 4,000 was wrong on v0.2.6 and none on v0.2.7, under both
+processors — which also confirms the release's claim that all three share the
+runtime and the interpreter was merely where the site happened to look. Poison
+masks it on v0.2.6 for the same reason it masked the site's: a withheld block is
+never handed back out to be mistaken for the old one.
+
+**It costs nothing.** Time and peak memory are unchanged from v0.2.6 — 0.16s
+compiled, 4.09s on the machine, 43.0s interpreted; 35 MB, 68 MB and 504 MB.
 
 ---
 

@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.2.7` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
+`v0.3.0` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -414,7 +414,7 @@ hundred instructions — also produces identical output, which is the collector
 check worth having.
 
 ⚠️ **The tree-walker was the odd one out at v0.2.6, by two characters, and
-v0.2.7 is the fix.** It truncated one line of 27,875 — `D-3` in
+v0.2.7 was the fix.** It truncated one line of 27,875 — `D-3` in
 `DEFECTS-FOUND.md`, reported from here and now closed. The cause was a cache
 remembering a string's **character** count keyed on **where its bytes were**,
 which v0.2.6 broke by giving text a heap that recycles: a 41-byte ASCII line
@@ -468,7 +468,25 @@ Beyond the language reference, what bites when writing the generator:
 - `Length` and `IsEmpty` are properties on collections, but `Length(s)` is a
   builtin call on a String.
 - String indices are **0-based**. `Pos` returns `-1` when not found.
-- A one-character literal is a `Char`, never a `String`.
+- A one-character literal is a `Char`, never a `String` — **but it now
+  EQUALS the one-character String of the same text** `[VAL-010]`, as of
+  v0.3.0, and membership follows `[VAL-013]`. The types stay distinct:
+  `'a' is String` is still false, a Char still widens to a String and never
+  the reverse, and nothing converts. ⚠️ **This is the first release that
+  changes what an existing program means** — a comparison that was false is
+  now true — which is why the minor version moved.
+
+  Before it, writing a type annotation silently changed an answer:
+  `var F : String := 'x';` then `F = 'x'` was **false**, where without the
+  annotation both sides are Chars and it was true. Two `Str (…)` wrappers in
+  this generator's own tests existed for that and are gone; a third, around a
+  concatenation, was redundant either way. Any remaining `Str (…)` on a
+  comparison is now noise rather than a fix.
+
+  ⚠️ **The one shape that could break is a collection deliberately holding
+  both a Char and a one-character String as distinct keys.** Those are one key
+  now. Nothing here does it, and the upstream sweep found it in none of seven
+  codebases.
 - ⚠️ **`/` is real division and always answers a `Double`** — `7 / 2` is 3.5 and
   even `4 / 2` is `2.0`. `div` and `mod` are the Integer pair, they refuse a
   `Double` rather than truncating it, and they are the only operators that raise

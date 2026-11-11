@@ -1307,8 +1307,11 @@ begin
     var C := Cells('| a |  b  |');
 
     AssertEqual(2, C.Length);
-    AssertEqual(Str('a'), C[0]);
-    AssertEqual(Str('b'), C[1]);
+    // ⚠️ No Str() round the expected values. A Char equals a one-character
+    // String as of v0.3.0 [VAL-010], so the wrapper that used to be needed
+    // here only obscured what was being asserted.
+    AssertEqual('a', C[0]);
+    AssertEqual('b', C[1]);
 end
 
 test 'Cells Keeps An Empty Cell';

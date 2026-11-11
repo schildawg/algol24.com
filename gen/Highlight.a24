@@ -328,7 +328,7 @@ end
 /// A keyword inside a literal is text.
 test 'Source Does Not Colour A Keyword Inside A String';
 begin
-    AssertEqual('<span class="str">' + Str('''') + 'begin' + Str('''') + '</span>',
+    AssertEqual('<span class="str">' + '''' + 'begin' + '''' + '</span>',
                 Source('''begin''', Two()));
 end
 

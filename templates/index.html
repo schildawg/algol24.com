@@ -260,6 +260,10 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          core one verb at a time, or wrap <code>String</code> in a class whose seam
          answers 13 for the length of a five-character string — and a unit of functions
          that composes is neither.</p>
+      <p>Every change since added a capability or corrected a mistake, leaving what a
+         working program means alone. v0.3.0 is the first that does not: a comparison
+         that was false is now true. The minor version moves for that reason and no
+         other, which is what a version number is for.</p>
       <p>v0.1.6 is three more on the same terms: the bitwise operators above, a
          precision for <code>Str</code> that renders <code>2.675</code> to two places
          as <code>2.67</code> because it rounds from the value rather than from a
@@ -402,16 +406,22 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          turned out to be one bug, and its worst shape read a program-level variable as an
          imported enumeration's member, so every assignment to it was discarded in
          silence.</p>
-      <p>The sweep has gained one since, and this site found it: a line of text coming
-         back two characters short, because a cache remembering how many
-         <em>characters</em> a string has was keyed on <em>where its bytes were</em>. That
-         was safe while text came from an allocator that never freed. Once a heap
-         recycled, a different string arriving at the same address was answered with the
-         old count — and only ever wrongly if the first one held a multi-byte character,
-         which is why it took half a megabyte of mixed text to see. v0.2.7 is that fix and
-         nothing else.</p>
+      <p>It has grown by three since, and this site found one of them: a line of text
+         coming back two characters short, because a cache remembering how many
+         <em>characters</em> a string has was keyed on <em>where its bytes were</em>.
+         Safe while text came from an allocator that never freed; wrong the moment a
+         heap recycled one. v0.2.7 is that fix and nothing else.</p>
+      <p>The other two came from the language contradicting itself. With
+         <code>C</code> a Char and <code>S</code> the one-character String of the same
+         text, every processor answered <code>C &lt;= S</code> true and
+         <code>S &lt;= C</code> true — and <code>C = S</code> <em>false</em>, which
+         describes an ordering no value can satisfy. v0.3.0 settled it the only way that
+         leaves the rest of the language standing, and two silent defects went with it,
+         in two programs that needed no edit: a filter that could never filter, and a
+         window that remembered its zoom and forgot where it was. The four-character key
+         worked and the one-character keys did not, which is why nobody noticed.</p>
 <pre>$ ./defects.sh
-<span class="out">0 reproducing, 17 fixed, of 17 checked</span></pre>
+<span class="out">0 reproducing, 19 fixed, of 19 checked</span></pre>
       <p>That harness is new, and it is the only one here written to <em>fail</em>: each
          report is reduced to the smallest program that shows it and run under whichever
          processors disagree, so the sweep goes green only when every one is fixed and

@@ -288,25 +288,30 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
       <p>This page is the evidence, and the check runs on every push. The generator
          that builds it is 2,250 lines of Algol-24 reading 27,000 lines of Markdown; run
          it under each processor in turn and the bytes that come out do not move.</p>
-<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.15s</span>
+<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.16s</span>
 $ mv site site-cc &amp;&amp; mkdir site
-$ algvm gen/Main.a24            <span class="com"># the machine, 3.52s</span>
+$ algvm gen/Main.a24            <span class="com"># the machine, 4.06s</span>
 $ diff -r site-cc site          <span class="com"># and it prints nothing</span></pre>
       <p>It also hosts the compiler: run <code>algc</code> <em>on</em> the machine and
          ask it for C, and the C is byte-identical to what a native <code>algc</code>
          emits — the whole front end and the whole back end, running as bytecode,
          agreeing to the byte.</p>
-      <p>The tree-walking interpreter is the slow one — 41.5s for the same four pages,
+      <p>The tree-walking interpreter is the slow one — 42.1s for the same four pages,
          having gained a collector of its own in v0.2.4 — and it agrees to the byte as
          well. A disagreement would be a bug in whichever processor is the odd one out,
          and that is most of what building a third one was for.</p>
       <p>Collection is <strong>precise</strong> rather than a guess. The compiler emits
          the addresses of a program's module-level variables and a shadow stack for its
-         locals, so nothing has to ask whether a word might be a pointer. The compiled
-         back end has had that since the machine shipped — compiling the compiler in
-         707 MB where it once took 2952 MB — and in v0.2.4 the tree-walking interpreter
-         stopped declining it, at <strong>2.8× less memory for about 9% more time</strong>.
-         It is easy to misremember as a feature of the machine, and it is not.</p>
+         locals, so nothing has to ask whether a word might be a pointer. All three
+         processors collect without being asked now — the machine from the start, the
+         tree-walker since v0.2.4, and compiled code since v0.2.6, which also made
+         <em>text</em> collectable at all: a String used to come from an arena that never
+         freed, so every <code>Str</code> and every <code>+</code> was held for the life
+         of the process.</p>
+      <p>Building this site is the measurement. Peak memory fell from <strong>84 MB to
+         36 MB</strong> compiled and from <strong>321 MB to 66 MB</strong> on the machine,
+         for about 15% more time on the machine and none measurable anywhere else. It is
+         easy to misremember any of this as a feature of the machine, and it is not.</p>
       <p>A runtime error now says where it happened, file and line, under the interpreter
          and under the machine. <strong>Compiled Algol-24 deliberately carries no source
          positions</strong> and will not: storing one before every statement is a cost

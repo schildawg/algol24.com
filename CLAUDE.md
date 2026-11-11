@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.2.5` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
+`v0.2.6` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -356,36 +356,52 @@ the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
 
 **There are three processors now, and the generator agrees with itself under
-all of them.** Measured on this machine at v0.2.5, building all four pages:
+all of them.** Measured on this machine at v0.2.6, building all four pages —
+time, and peak resident memory against the same run under v0.2.5:
 
-| | |
-| --- | --- |
-| compiled to C | **0.15s** |
-| bytecode, `algvm gen/Main.a24` | **3.52s** |
-| bytecode, `--algol-loop` | **5.26s** |
-| tree-walking, `algc gen/Main.a24` | **41.5s** |
+| | time | peak RSS | was, v0.2.5 |
+| --- | --- | --- | --- |
+| compiled to C | **0.16s** | **36 MB** | 84 MB |
+| bytecode, `algvm gen/Main.a24` | **4.06s** | **66 MB** | 321 MB |
+| bytecode, `--algol-loop` | **6.52s** | | |
+| tree-walking, `algc gen/Main.a24` | **42.1s** | **503 MB** | 1302 MB |
 
 ⚠️ **RE-MEASURE THE WHOLE TABLE OR NONE OF IT, in one sitting.** These numbers
 are machine- and session-relative, and comparing a fresh one against an old one
-invents regressions. This table read 0.08 / 3.78 / 20.96 at v0.2.3, and at
-v0.2.5 the compiled figure looked like an 88% regression — until v0.2.3's and
-v0.2.4's own binaries were rebuilt and run against the same documents and
-answered **0.15s each**. Three binaries agreeing means nothing regressed; the
-earlier session's machine was simply faster. The interpreter is the one real
-movement: 35.9s, 42.5s, 41.5s for v0.2.3, v0.2.4 and v0.2.5 on identical input,
-which is the collector v0.2.4 gave it costing 18% on a workload that allocates
-this hard rather than the ~9% its notes measured elsewhere.
+invents regressions. The table read 0.08 / 3.78 / 20.96 at v0.2.3, and at v0.2.5
+the compiled figure looked like an 88% regression — until v0.2.3's and v0.2.4's
+own binaries were rebuilt and run against the same documents and answered
+**0.15s each**. Three binaries agreeing means nothing regressed; the earlier
+session's machine was simply faster.
+
+Two movements since are real, and each is a release doing what it said. v0.2.4's
+collector for the tree-walker cost it 18% on a workload that allocates this hard
+against the ~9% its notes measured elsewhere — 35.9s to 42.5s. And v0.2.6 made
+**text collectable**, which costs the machine 15% here (3.52s to 4.06s, against
+the ~13% claimed) and buys the memory column above: a String used to come from
+an arena that never freed, so every `Str` and every `+` was permanent.
 
 `--algol-loop` turns off the hand-written C dispatch loop v0.2.5 introduced, so
-the pair above measures it: **1.49×** here, against the 1.51× the release
-claims. Worth keeping as an independent check of someone else's headline figure.
+the pair above measures it: **1.61×** here, against the 1.51× that release
+claims. Worth keeping as an independent check of someone else's headline figure
+— and note it moved with v0.2.6, the loop being where the new write barrier
+falls.
 
-Byte-identical output from all three, and the tests pass under `algvm --test`
-as well. Worth re-running on a pin bump, because this is a far better
-exercise of a processor than any single corpus case: 2,250 lines of Algol-24
-reading 27,000 lines of Markdown. `--collect 100` — collecting every hundred
-instructions, 36× slower — also produces identical output, which is the
-collector check worth having.
+Byte-identical output from the compiled back end and the machine, and the tests
+pass under `algvm --test` as well. Worth re-running on a pin bump, because this
+is a far better exercise of a processor than any single corpus case: 2,250 lines
+of Algol-24 reading 27,000 lines of Markdown. `--collect 100` — collecting every
+hundred instructions — also produces identical output, which is the collector
+check worth having.
+
+⚠️ **THE TREE-WALKER IS THE ODD ONE OUT AT v0.2.6, by two characters.** It
+truncates one line of 27,875 — `D-3` in `DEFECTS-FOUND.md`, open and reported.
+`ALG_COLLECT_EVERY=0` and `ALG_POISON=1` each make it byte-identical, which is
+what says it is the collector and not the renderer. **The published site is
+unaffected**: `build.sh` compiles the generator and CI compares the machine
+against that, and those two agree. But `algc gen/Main.a24` is not a safe way to
+produce the site at this pin, and CI does not compare the interpreter — adding
+it costs about 42 seconds a push.
 
 ## Two traps this project has already hit
 

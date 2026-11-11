@@ -5,14 +5,14 @@ and by running the generator under all three processors. Written here rather
 than in `spec/DEFECTS.md` because that file wants an entry the compiler
 repository owns; these are reports, with reproductions, for whoever takes them.
 
-**Nothing here is open.** Both reports were reported against v0.2.3, accepted,
-and fixed in **v0.2.4** — where they are `D-1` and `D-2` of the sixteen-defect
-sweep, under the numbering this file gave them. Each is verified below against
-the pinned v0.2.4 binaries rather than taken on trust, which is the only reason
-a closed report is worth keeping.
+**One report is open: `D-3`, found at v0.2.6.** `D-1` and `D-2` were reported
+against v0.2.3, accepted, and fixed in **v0.2.4** — where they carry the
+numbering this file gave them. Each is verified below against the pinned
+binaries rather than taken on trust, which is the only reason a closed report is
+worth keeping.
 
 The compiler repository's `finished/PLAN-0.2.4.md` carries the root cause for
-each, and `./defects.sh` is the harness that holds all sixteen closed.
+each of those, and `./defects.sh` is the harness that holds all sixteen closed.
 
 ---
 
@@ -164,6 +164,84 @@ discipline that found the discrepancy.
 
 ---
 
+## D-3 — 🔴 OPEN at v0.2.6 — the tree-walker loses two characters of one string
+
+**Severity.** The published site is **not affected** and nothing is at risk
+today: the site is built by the compiled back end, which is correct, and CI
+compares the bytecode machine against it — the two agree to the byte. Only the
+**tree-walking interpreter** diverges, and only when its collector is on. But it
+is a wrong answer rather than a crash, in the processor the other two are
+measured against, and it was found by the only thing here that renders half a
+megabyte of text in one run.
+
+**What happens.** Building all four pages with `algc gen/Main.a24` produces one
+line that differs from what the other two processors produce, out of 27,875
+lines of input:
+
+```diff
+- <p>Sets the color a viewport's pen draws in.</p>
++ <p>Sets the color a viewport's pen draws i</p>
+```
+
+The last two characters are gone. The source line is 41 characters of plain
+ASCII, in the library reference. It is **deterministic**: the same line, the
+same truncation, on every run.
+
+**It is the collector, and the release's own switches say so.**
+
+| | |
+| --- | --- |
+| `algc gen/Main.a24` | one line truncated |
+| `ALG_COLLECT_EVERY=0 algc gen/Main.a24` | **byte-identical** |
+| `ALG_POISON=1 algc gen/Main.a24` | **byte-identical** |
+| `algvm gen/Main.a24` | byte-identical |
+| compiled to C | byte-identical (the baseline) |
+
+Poison **withholds** a released block rather than handing it back out, and that
+is the half that makes this read as *a block freed while still live and then
+reused*, rather than a renderer fault. v0.2.6's notes say that split was the
+whole diagnosis four times over; this is a fifth.
+
+**What has been ruled out**, so the search can start below the renderer:
+
+- **`ReadLines` is not it.** A probe printing the length of all 10,386 lines of
+  the library reference answers identically under the interpreter and the
+  machine. The input is read correctly.
+- **The line alone is not it.** `Render` of a one-element list holding that
+  exact line is correct under both.
+- **The document alone is not it.** Rendering the whole library reference —
+  with its real keyword table, its real rule targets and `/reference/` as the
+  citation base — is correct under both, 494,177 bytes agreeing exactly.
+- **Two documents are not enough.** Rendering the 15,142-line specification
+  first and the library second, in one process, is correct under both.
+
+So it needs the whole program: four pages, the templates read and substituted,
+and two 500 KB-plus strings written out. That is allocation history, which is
+what a collector bug would want.
+
+**Reproduction.** In `algol24.com` at this pin:
+
+```console
+$ ./build.sh                       # the compiled site, which is correct
+$ mv site site-cc && mkdir site
+$ vendor/algol24/bootstrap/algc gen/Main.a24
+$ diff -r site-cc site
+4931c4931
+< <p>Sets the color a viewport's pen draws in.</p>
+> <p>Sets the color a viewport's pen draws i</p>
+```
+
+`ALG_MEM_REPORT=1` on that run reports the text heap at 13 chunks, 6.8 MB used,
+2.3 MB live, **398 sweeps** — so the collector runs often enough during the run
+for one sweep in four hundred to be the one that matters.
+
+**Why the site did not catch this before shipping.** CI compares the compiled
+site against the machine's and not against the interpreter's. Adding the third
+comparison costs about 42 seconds a push and would have caught it. Worth
+deciding on rather than assuming.
+
+---
+
 ## Not defects, but worth writing down
 
 - **`algc --test vm/run.a24` raises** `Reset failed: no file has been
@@ -174,18 +252,19 @@ discipline that found the discrepancy.
   two releases that it did not, and v0.2.5 settled it. `Fib (27)` with the
   pinned binaries on this machine, every row measured in one sitting:
 
-  | | v0.2.3 | v0.2.4 | v0.2.5 |
-  | --- | --- | --- | --- |
-  | `algvm` | 1.33s | 1.33s | **0.69s** |
-  | `algc`, interpreted | 6.55s | 6.60s | **6.53s** |
-  | the ratio | 4.9× | 5.0× | **9.5×** |
+  | | v0.2.3 | v0.2.4 | v0.2.5 | v0.2.6 |
+  | --- | --- | --- | --- | --- |
+  | `algvm` | 1.33s | 1.33s | 0.69s | **0.77s** |
+  | `algc`, interpreted | 6.55s | 6.60s | 6.53s | **6.64s** |
+  | the ratio | 4.9× | 5.0× | 9.5× | **8.6×** |
 
   ⚠️ Every row above was measured in **one sitting**, against binaries built
   from each tag, because the first draft of this table mixed a fresh row with
   two from an earlier session — which is the mistake it exists to document.
 
-  The machine halved, exactly as the release notes say (1.35 → 0.69), and the
-  interpreter did not move. So the discrepancy was never a measurement fault
+  The machine halved at v0.2.5 exactly as those notes say, and gave 11% of it
+  back at v0.2.6 for a collector that reaches text; the interpreter has not
+  moved across four releases. So the discrepancy was never a measurement fault
   here: the published 0.91s belonged to a machine that had already had work the
   pinned v0.2.3 and v0.2.4 binaries had not. The site still states no multiple,
   because this one is the site's own and will move again.

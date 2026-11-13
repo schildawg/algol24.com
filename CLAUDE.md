@@ -86,7 +86,7 @@ text for the Reference and Opcodes pages. One pinned commit, so the
 documentation on the site cannot drift from the compiler that generated it.
 
 ⚠️ **There are TWO submodules now, pinned to two different releases.**
-`vendor/algol24-library` is at **v0.1.0** where the compiler is at **v0.2.7**,
+`vendor/algol24-library` is at **v0.2.0** where the compiler is at **v0.4.0**,
 and that is not drift: the library is a *user* of the language rather than part
 of it, with its own repository and its own releases. Its `REFERENCE.md` is the
 source of the Library page, on the same terms — the page describes a library
@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.3.0` and the library's `v0.1.0`. An earlier pin, `01b2778`, was rewritten
+`v0.4.0` and the library's `v0.2.0`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -216,7 +216,7 @@ the renderer at a new document and hoping is how headings vanish silently.
 | --- | --- | --- | --- | --- |
 | `spec/ALGOL-24.md` | `##` chapters | `###` sections | 0 | declares them |
 | `vm/REFERENCE.md` | `#` (19) | `##` (80 opcodes) | 0 | cites 65 it lacks |
-| library `REFERENCE.md` | none | `##` (154) | **850** | cites 3 it lacks |
+| library `REFERENCE.md` | none | `##` (156) | **855** | cites 3 it lacks |
 
 - `ContentsOf(Lines, Group, Entry)` takes the levels. `Contents` keeps the
   specification's 2-and-3 for the tests. Read as 2-and-3, the opcode reference
@@ -226,7 +226,7 @@ the renderer at a new document and hoping is how headings vanish silently.
   `/reference/` for the other two, whose citations are checked against
   `RuleTargets` of the **pinned spec**, so a citation of a rule that does not
   exist stays plain text rather than linking to nothing.
-- ⚠️ **`Links` exists because the library reference has 850 of them and the
+- ⚠️ **`Links` exists because the library reference has 855 of them and the
   other two have zero.** The reader went three releases without Markdown link
   syntax and nothing noticed. It runs *after* `LinkRules` — a rule citation is
   `[EXP-017]` with no parentheses after it, so neither pass can take a bracket
@@ -261,18 +261,18 @@ wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec �
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 297. **`OpcodeCount` is the second derived
+authority. The two now agree at 303. **`OpcodeCount` is the second derived
 figure** and was added for the same reason: three sources said 78, 80 and 81,
 and the entries in the document being rendered are the only count that cannot
 drift from the page a reader is looking at. The remaining literals in the
-template are unit tests (247) and cases (279). Re-check both on a bump — and
+template are unit tests (247) and cases (286). Re-check both on a bump — and
 the second one has a trap of its own.
 
-⚠️ **The machine runs 276 of the 279, and the page says so precisely.** The
-corpus is `conformance/` (210) plus `refusals/` (66) plus `defects/` (3);
+⚠️ **The machine runs 283 of the 286, and the page says so precisely.** The
+corpus is `conformance/` (217) plus `refusals/` (66) plus `defects/` (3);
 `vm/conform.sh` walks the first two and not the third, so *every case under all
-three processors* was an over-claim. 276 is the machine's own figure, from its
-own harness.
+three processors* was an over-claim. 283 is the machine's own figure, from its
+own harness, and both numbers move on a bump.
 
 ⚠️ **`OP_COUNT` is a sentinel, which is why the opcode count once had three
 answers.** `vm/OpCode.a24` declares 81 `const OP_`; the last ends the set and is
@@ -292,7 +292,7 @@ program and expects a file to run.
 
 **Cases is the whole corpus, defects included** — `conformance/` plus
 `refusals/` plus the checked-in `defects/`, which is exactly the figure
-`./conform.sh` reports as *the language: 279 passed*. Read it off that line
+`./conform.sh` reports as *the language: 286 passed*. Read it off that line
 rather than counting two directories and forgetting the third.
 
 ⚠️ **`conformance/` and `refusals/` are GENERATED and git-ignored.** They are
@@ -372,18 +372,20 @@ the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
 
 **There are three processors now, and the generator agrees with itself under
-all of them.** Measured on this machine at v0.2.7, building all four pages —
+all of them.** Measured on this machine at v0.4.0, building all four pages —
 time, and peak resident memory against the same run under v0.2.5, before text
 became collectable:
 
 | | time | peak RSS | RSS at v0.2.5 |
 | --- | --- | --- | --- |
-| compiled to C | **0.16s** | **35 MB** | 84 MB |
-| bytecode, `algvm gen/Main.a24` | **4.09s** | **68 MB** | 321 MB |
-| bytecode, `--algol-loop` | **6.57s** | | |
-| tree-walking, `algc gen/Main.a24` | **43.0s** | **504 MB** | 1302 MB |
+| compiled to C | **0.18s** | **36 MB** | 84 MB |
+| bytecode, `algvm gen/Main.a24` | **4.26s** | **63 MB** | 321 MB |
+| bytecode, `--algol-loop` | **6.97s** | | |
+| tree-walking, `algc gen/Main.a24` | **46.2s** | **520 MB** | 1302 MB |
 
-v0.2.7 moved none of these: it is one fix, and it costs neither time nor memory.
+⚠️ **Those are up about 4% on v0.2.7 and nothing regressed** — the input grew
+with the releases, from 27,875 lines of Markdown to **28,940**, which is most of
+it. Check the input size before chasing a time.
 
 ⚠️ **RE-MEASURE THE WHOLE TABLE OR NONE OF IT, in one sitting.** These numbers
 are machine- and session-relative, and comparing a fresh one against an old one
@@ -468,6 +470,21 @@ Beyond the language reference, what bites when writing the generator:
 - `Length` and `IsEmpty` are properties on collections, but `Length(s)` is a
   builtin call on a String.
 - String indices are **0-based**. `Pos` returns `-1` when not found.
+- ⚠️ **`Entries (Path)` lists a directory** — `[RT-026]`, new in v0.4.0, and the
+  fifth directory built-in. Names only, never paths, without `.` or `..`, in the
+  filesystem's order, which is neither sorted nor stable between runs. Sort it
+  before putting anything derived from it on a page, or the build stops being
+  reproducible. The library's `file` unit has had an `Entries` since 0.1.6 with
+  the same surface, and a `uses file` reaches that one; the generator uses
+  neither.
+- **Reflection is six built-ins and a type value** — `[RT-031]` to `[RT-035]`,
+  new in v0.3.1. `Fields`, `TypeOf`, `Member`, `Invoke`, `New`, `SetMember`, and
+  `T.Name`/`T.Parent`/`T.Fields`/`T.Methods`/`T.Properties`/`T.Accepts (X)`. No
+  new syntax, no metaclasses, and nothing alters a class at run time. The
+  generator uses none of it — the page describes it, which is a different thing,
+  and the band's example is **run** before it goes on the page.
+  ⚠️ A computed name reaches a `private` member; that is `[DCL-011]` and
+  deliberate.
 - A one-character literal is a `Char`, never a `String` — **but it now
   EQUALS the one-character String of the same text** `[VAL-010]`, as of
   v0.3.0, and membership follows `[VAL-013]`. The types stay distinct:

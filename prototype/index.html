@@ -599,7 +599,7 @@
        and compiles itself — and so are the bytecode machine that runs it and the
        library that comes with it.</p>
 
-    <p class="status">v0.3.0 &middot; library <b>v0.1.0</b> &middot; on Homebrew</p>
+    <p class="status">v0.4.0 &middot; library <b>v0.2.0</b> &middot; on Homebrew</p>
 
     <div class="cta">
       <a class="btn btn-primary" href="#install">Install</a>
@@ -636,7 +636,7 @@ BostonCream().<span class="fn">Cook</span>();</pre>
 $ brew trust schildawg/algol24
 $ brew install algol24-vm
 $ algvm --version
-<span class="out">algvm 0.3.0</span></pre>
+<span class="out">algvm 0.4.0</span></pre>
       <p>The middle line is required rather than advisory: Homebrew will not load a
          formula from a third-party tap until you have said that you trust it.</p>
       <p>That is the machine with the library beside it, installed where a
@@ -648,7 +648,7 @@ $ algvm --version
          C out of the language, or a binary with no runtime to carry:</p>
 <pre>$ brew install algol24
 $ algc --version
-<span class="out">algc 0.3.0</span></pre>
+<span class="out">algc 0.4.0</span></pre>
       <p>Bottled for <code>arm64_sequoia</code>, <code>arm64_tahoe</code> and
          <code>x86_64_linux</code>. Anywhere else Homebrew builds from source, which
          needs a C compiler and takes seconds. The specification is installed beside
@@ -796,6 +796,50 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
   </div>
 
   <div class="band">
+    <div class="wrap claim" id="reflection">
+      <p class="eyebrow">The reflection</p>
+      <h2>A program can read its own shapes.</h2>
+      <div class="rule"></div>
+      <p>It can ask what a class declares, construct one from a type it was handed, read
+         and write a field by a computed name, call a method by one, and ask whether a
+         value satisfies a type — <strong>without a single new piece of syntax</strong>.
+         Every one of those is a built-in, or a member of a value the language already
+         had.</p>
+<pre><span class="kw">var</span> Thing := <span class="fn">Coin</span> (<span class="num">7</span>);
+<span class="kw">var</span> Shape := <span class="fn">Fields</span> (Thing);        <span class="com">// name -&gt; declared type</span>
+
+<span class="kw">for</span> <span class="kw">var</span> F <span class="kw">in</span> Shape <span class="kw">do</span>
+    <span class="fn">WriteLn</span> (F, <span class="str">' : '</span>, Shape[F], <span class="str">' = '</span>, <span class="fn">Str</span> (<span class="fn">Member</span> (Thing, F)));
+
+<span class="kw">var</span> Made := <span class="fn">New</span> (<span class="fn">TypeOf</span> (Thing), [<span class="num">7</span>]);
+
+<span class="fn">SetMember</span> (Made, <span class="str">'Worth'</span>, <span class="num">11</span>);
+
+<span class="fn">WriteLn</span> (<span class="fn">Str</span> (<span class="fn">Invoke</span> (Made, <span class="str">'Scaled'</span>, [<span class="num">3</span>])));
+<span class="out">Worth : Integer = 7</span>
+<span class="out">33</span></pre>
+      <p>A type is a <em>value</em>. <code>TypeOf (X)</code> answers it and a class
+         answers itself; <code>T.Name</code>, <code>T.Parent</code>,
+         <code>T.Fields</code>, <code>T.Methods</code> and <code>T.Properties</code> are
+         what a class says about itself, and <code>T.Accepts (X)</code> is the dynamic
+         form of <code>is</code>. Type values are interned, so <code>TypeOf (1)</code>
+         and <code>TypeOf (2)</code> are the same value and compare by identity — and a
+         type is not constructible, which <code>TypeOf (42) ()</code> says rather than
+         answering an <code>Integer instance</code>.</p>
+      <p><strong>No metaclasses, no attribute hooks, and nothing creates or alters a
+         class at run time.</strong> The data is distilled when the program is built
+         rather than kept as a live syntax tree, because a tree held for the life of a
+         program is thousands of nodes retained for a few dozen bytes of metadata. There
+         are no frames, no stacks and no source.</p>
+      <p>One sharp edge, stated in the specification rather than left to be found: a
+         computed name <strong>reaches a <code>private</code> member</strong>.
+         <code>private</code> is settled before the program runs and nothing records it
+         afterwards, so reflection can do what written code may not. The guard that
+         remains is <code>uses</code>.</p>
+    </div>
+  </div>
+
+  <div class="band tint">
     <div class="wrap claim" id="machine">
       <p class="eyebrow">The machine</p>
       <h2>Three processors, and they must agree.</h2>
@@ -809,20 +853,20 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
       <div class="facts">
         <div class="fact"><b>80</b><span>opcodes, one reference entry each</span></div>
         <div class="fact"><b>140</b><span>tests of the machine itself</span></div>
-        <div class="fact"><b>276</b><span>cases it answers like the others</span></div>
+        <div class="fact"><b>283</b><span>cases it answers like the others</span></div>
       </div>
       <p>This page is the evidence, and the check runs on every push. The generator
          that builds it is 2,250 lines of Algol-24 reading 27,000 lines of Markdown; run
          it under each processor in turn and the bytes that come out do not move.</p>
-<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.16s</span>
+<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.18s</span>
 $ mv site site-cc &amp;&amp; mkdir site
-$ algvm gen/Main.a24            <span class="com"># the machine, 4.06s</span>
+$ algvm gen/Main.a24            <span class="com"># the machine, 4.26s</span>
 $ diff -r site-cc site          <span class="com"># and it prints nothing</span></pre>
       <p>It also hosts the compiler: run <code>algc</code> <em>on</em> the machine and
          ask it for C, and the C is byte-identical to what a native <code>algc</code>
          emits — the whole front end and the whole back end, running as bytecode,
          agreeing to the byte.</p>
-      <p>The tree-walking interpreter is the slow one — 42.1s for the same four pages,
+      <p>The tree-walking interpreter is the slow one — 46.2s for the same four pages,
          having gained a collector of its own in v0.2.4 — and it agrees to the byte as
          well. A disagreement would be a bug in whichever processor is the odd one out,
          and that is most of what building a third one was for.</p>
@@ -850,12 +894,12 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
     </div>
   </div>
 
-  <div class="band tint">
+  <div class="band">
     <div class="wrap claim" id="library">
       <p class="eyebrow">The library</p>
       <h2>What alpha meant.</h2>
       <div class="rule"></div>
-      <p><code>algol24-library</code> v0.1.0 is ten units, borrowing Turbo Pascal's names
+      <p><code>algol24-library</code> v0.2.0 is eleven units, borrowing Turbo Pascal's names
          as an homage rather than as a compatibility target. Its version is its own on
          purpose: the library is a <em>user</em> of the language rather than part of it,
          with its own repository, its own releases and its own record of what it has
@@ -871,6 +915,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
         <div class="unit"><b>file</b><span>files, directories, paths</span></div>
         <div class="unit"><b>dos</b><span>the environment, disks, process exec</span></div>
         <div class="unit"><b>testing</b><span>assertions, for programs that test themselves</span></div>
+        <div class="unit"><b>reflect</b><span>describing a value, and comparing two by content</span></div>
       </div>
       <p><code>graph</code> and <code>sound</code> reach SDL2 through the language's own
          foreign function interface, which is the argument for having one: a library
@@ -885,9 +930,9 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
 <span class="fn">Circle</span> (V, <span class="num">320</span>, <span class="num">240</span>, <span class="num">180</span>);
 <span class="fn">Show</span> (V);</pre>
       <div class="facts">
-        <div class="fact"><b>10</b><span>units, each its own file</span></div>
-        <div class="fact"><b>850</b><span>tests across them</span></div>
-        <div class="fact"><b>119</b><span>reference examples, run not quoted</span></div>
+        <div class="fact"><b>11</b><span>units, each its own file</span></div>
+        <div class="fact"><b>880</b><span>tests across them</span></div>
+        <div class="fact"><b>121</b><span>reference examples, run not quoted</span></div>
       </div>
       <p>The examples are the part worth singling out. Every one in the library's
          reference is <em>run</em> and its output compared against what the entry claims,
@@ -902,7 +947,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
     </div>
   </div>
 
-  <div class="band">
+  <div class="band tint">
     <div class="wrap claim" id="reference">
       <p class="eyebrow">The guarantee</p>
       <h2>The specification is the authority.</h2>
@@ -911,11 +956,11 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          implementation that is wrong. The difference is recorded as a defect and
          carries a program that reproduces it.</p>
       <div class="facts">
-        <div class="fact"><b>297</b><span>rules, each claimed by a case</span></div>
+        <div class="fact"><b>303</b><span>rules, each claimed by a case</span></div>
         <div class="fact"><b>247</b><span>unit tests in Algol-24</span></div>
-        <div class="fact"><b>279</b><span>cases in the corpus</span></div>
+        <div class="fact"><b>286</b><span>cases in the corpus</span></div>
       </div>
-      <p>Every case runs interpreted and compiled, and every run must be green; the 276
+      <p>Every case runs interpreted and compiled, and every run must be green; the 283
          conformance and refusal cases run on the machine as well. A case the interpreter
          gets right and the compiled program gets wrong is a gap, and a gap is a failure
          rather than a note. A defect's test is stranger still: it records the wrong
@@ -958,7 +1003,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
     </div>
   </div>
 
-  <div class="band tint">
+  <div class="band">
     <div class="wrap claim">
       <p class="eyebrow">The name</p>
       <h2>Why Algol, and why 24.</h2>
@@ -979,7 +1024,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
     </div>
   </div>
 
-  <div class="band">
+  <div class="band tint">
     <div class="wrap claim">
       <p class="eyebrow">Provenance</p>
       <h2>It began as Lox.</h2>

@@ -24,8 +24,8 @@ uses '../vendor/algol24-library/strings';
 /// version in two places is two answers to one question -- but the library
 /// versions itself, being a USER of the language rather than part of it. The
 /// hero shows both rather than implying one.
-const Release := '0.4.0';
-const Library := '0.2.0';
+const Release := '0.4.1';
+const Library := '0.3.1';
 const Tap     := 'schildawg/algol24';
 /// ⚠️ Repo, not Source. 'uses' brings a unit's names in unqualified, and
 /// Highlight already has a Source -- the function that highlights a line. The

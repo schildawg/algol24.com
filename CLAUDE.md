@@ -86,7 +86,7 @@ text for the Reference and Opcodes pages. One pinned commit, so the
 documentation on the site cannot drift from the compiler that generated it.
 
 ⚠️ **There are TWO submodules now, pinned to two different releases.**
-`vendor/algol24-library` is at **v0.2.0** where the compiler is at **v0.4.0**,
+`vendor/algol24-library` is at **v0.3.1** where the compiler is at **v0.4.1**,
 and that is not drift: the library is a *user* of the language rather than part
 of it, with its own repository and its own releases. Its `REFERENCE.md` is the
 source of the Library page, on the same terms — the page describes a library
@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.4.0` and the library's `v0.2.0`. An earlier pin, `01b2778`, was rewritten
+`v0.4.1` and the library's `v0.3.1`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -177,7 +177,11 @@ Three more things that are only visible by reading several files at once:
   ⚠️ The generator writes to `site/` and nowhere else, so the compiled run has
   to be moved aside rather than pointed elsewhere — and the step runs **before**
   the asset copy, so the two trees hold only generated HTML when they are
-  compared. `vm/build.sh` also defaults to `-std=c11`, so it gets `CFLAGS` from
+  compared. ⚠️ **By hand this means running `./build/generate`, NOT
+  `./build.sh`.** `build.sh` copies the assets in, so a `diff -r` of its output
+  against a bare generator run reports every asset as missing — which reads as
+  the processors disagreeing and is nothing of the kind. It cost two rounds in
+  one sitting. `vm/build.sh` also defaults to `-std=c11`, so it gets `CFLAGS` from
   outside like the other three.
 - ⚠️ **`-std=gnu11`, never `-std=c11`, and both files say so.** The runtime
   calls `readlink("/proc/self/exe")` for the program's own path, and glibc's
@@ -215,17 +219,30 @@ the renderer at a new document and hoping is how headings vanish silently.
 | | groups | entries | links | rule citations |
 | --- | --- | --- | --- | --- |
 | `spec/ALGOL-24.md` | `##` chapters | `###` sections | 0 | declares them |
-| `vm/REFERENCE.md` | `#` (19) | `##` (80 opcodes) | 0 | cites 65 it lacks |
-| library `REFERENCE.md` | none | `##` (156) | **855** | cites 3 it lacks |
+| `vm/REFERENCE.md` | `#` (19) | `##` (80 opcodes) | 0 | 68 of the spec's |
+| library `REFERENCE.md` | none | `##` (156) | **855** | 3 of the spec's |
 
 - `ContentsOf(Lines, Group, Entry)` takes the levels. `Contents` keeps the
   specification's 2-and-3 for the tests. Read as 2-and-3, the opcode reference
   lists 80 flat mnemonics and **drops all 19 group names without a word**.
+- ⚠️ **The last column is what drives `LinkRulesTo`, and the wording used to be
+  opaque.** It said *cites 65 it lacks*, meaning: this document cites rules it
+  does not itself declare. Only the specification declares its own, so only the
+  specification wants same-page anchors — the other two cite the spec and must
+  point at `/reference/`.
 - `LinkRulesTo(Base)` says where a citation points. Empty for the
   specification, which declares its own rules and wants same-page anchors;
   `/reference/` for the other two, whose citations are checked against
   `RuleTargets` of the **pinned spec**, so a citation of a rule that does not
   exist stays plain text rather than linking to nothing.
+- ⚠️ **`vm/reference.sh` verifies 65 of those 68, and the three it cannot see
+  are a TWO-LETTER prefix.** Its pattern is
+  `grep -ho '\[[A-Z][A-Z][A-Z]-[0-9][0-9][0-9]\]'` — exactly three letters —
+  so `[RT-001]`, `[RT-012]` and `[RT-015]` are invisible to the check that
+  claims *all defined*. All three do exist in the spec and all three link on
+  the built page, so nothing is wrong today; the check is simply narrower than
+  it reads. `[A-Z]\{2,3\}-` is the fix, upstream, and it has not been
+  reported.
 - ⚠️ **`Links` exists because the library reference has 855 of them and the
   other two have zero.** The reader went three releases without Markdown link
   syntax and nothing noticed. It runs *after* `LinkRules` — a rule citation is
@@ -264,15 +281,38 @@ disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
 authority. The two now agree at 303. **`OpcodeCount` is the second derived
 figure** and was added for the same reason: three sources said 78, 80 and 81,
 and the entries in the document being rendered are the only count that cannot
-drift from the page a reader is looking at. The remaining literals in the
-template are unit tests (247) and cases (286). Re-check both on a bump — and
-the second one has a trap of its own.
+drift from the page a reader is looking at.
 
-⚠️ **The machine runs 283 of the 286, and the page says so precisely.** The
-corpus is `conformance/` (217) plus `refusals/` (66) plus `defects/` (3);
+⚠️ **EVERYTHING ELSE ON THE PAGE IS A LITERAL, and this is the whole list.**
+Re-measure every one of them on a bump, each from the harness that owns it:
+
+| figure | at v0.4.1 | from |
+| --- | --- | --- |
+| unit tests | 247 | `./test.sh` in the compiler repo |
+| cases in the corpus | 286 | `./conform.sh` — *the language: N passed* |
+| machine's own tests | 140 | `./test.sh vm/Vm.a24` |
+| cases on the machine | 284 | `./vm/conform.sh` — identical **plus** FFI-interpreter |
+| library units | 11 | the Status table in the library's `CLAUDE.md` |
+| library tests | 888 | `./test.sh` there, the 11 unit lines summed |
+| reference examples | 121 | the same run's `reference:` line |
+| generator lines | 2,374 | `wc -l gen/*.a24` |
+| Markdown lines read | 30,000 | the three source documents, `wc -l` |
+| the three timings and two RSS figures | see the table below | one sitting, never mixed |
+
+⚠️ **The library's 888 is a SUM and the harness does not print it.**
+`./test.sh` prints a line per file, including `harness` (0) and
+`harness-example` (78) — which are **not units** and are not in the Status
+table. Sum the eleven that are, or the figure comes out 958.
+
+⚠️ **The machine runs 284 of the 286, and the page says so precisely.** The
+corpus is `conformance/` (218) plus `refusals/` (66) plus `defects/` (2);
 `vm/conform.sh` walks the first two and not the third, so *every case under all
-three processors* was an over-claim. 283 is the machine's own figure, from its
-own harness, and both numbers move on a bump.
+three processors* was an over-claim. 284 is the machine's own figure, from its
+own harness, and both numbers move on a bump — it reports **281 identical to
+the fixture plus 3 against an `--ffi` interpreter**, and the site's figure is
+that sum. ⚠️ **The total held at 286 across v0.4.1 by coincidence**: one
+`defects/` case was promoted to `conformance/0225`, so both directories moved
+and neither sum did. Read all three counts, never the total alone.
 
 ⚠️ **`OP_COUNT` is a sentinel, which is why the opcode count once had three
 answers.** `vm/OpCode.a24` declares 81 `const OP_`; the last ends the set and is
@@ -372,20 +412,24 @@ the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
 
 **There are three processors now, and the generator agrees with itself under
-all of them.** Measured on this machine at v0.4.0, building all four pages —
+all of them.** Measured on this machine at v0.4.1, building all four pages —
 time, and peak resident memory against the same run under v0.2.5, before text
 became collectable:
 
 | | time | peak RSS | RSS at v0.2.5 |
 | --- | --- | --- | --- |
 | compiled to C | **0.18s** | **36 MB** | 84 MB |
-| bytecode, `algvm gen/Main.a24` | **4.26s** | **63 MB** | 321 MB |
-| bytecode, `--algol-loop` | **6.97s** | | |
-| tree-walking, `algc gen/Main.a24` | **46.2s** | **520 MB** | 1302 MB |
+| bytecode, `algvm gen/Main.a24` | **4.26s** | **62 MB** | 321 MB |
+| bytecode, `--algol-loop` | **6.93s** | | |
+| tree-walking, `algc gen/Main.a24` | **47.5s** | **540 MB** | 1302 MB |
 
-⚠️ **Those are up about 4% on v0.2.7 and nothing regressed** — the input grew
-with the releases, from 27,875 lines of Markdown to **28,940**, which is most of
-it. Check the input size before chasing a time.
+⚠️ **Nothing has regressed across these bumps, and the input is why** — it grew
+with the releases, from 27,875 lines of Markdown at v0.2.7 to 28,940 at v0.4.0
+and **30,321** now, v0.4.1 having given every opcode entry a worked example.
+Check the input size before chasing a time: v0.4.1 is +4.8% of input for +2.7%
+of interpreted time and +3.8% of its peak. Check it with
+`wc -l vendor/algol24/spec/ALGOL-24.md vendor/algol24/vm/REFERENCE.md
+vendor/algol24-library/REFERENCE.md`.
 
 ⚠️ **RE-MEASURE THE WHOLE TABLE OR NONE OF IT, in one sitting.** These numbers
 are machine- and session-relative, and comparing a fresh one against an old one
@@ -403,7 +447,7 @@ the ~13% claimed) and buys the memory column above: a String used to come from
 an arena that never freed, so every `Str` and every `+` was permanent.
 
 `--algol-loop` turns off the hand-written C dispatch loop v0.2.5 introduced, so
-the pair above measures it: **1.61×** here, against the 1.51× that release
+the pair above measures it: **1.63×** here, against the 1.51× that release
 claims. Worth keeping as an independent check of someone else's headline figure
 — and note it moved with v0.2.6, the loop being where the new write barrier
 falls.
@@ -445,8 +489,25 @@ unit uses — and `--test` will not catch it, because the interpreter runs.
 `.band.tint` is the only difference between the two, and the page reads as stripes
 only while they alternate. v0.1.5's extension-functions band went in above the
 guarantee and the three bands under it — guarantee, name, provenance — each had
-to swap. The check that would catch getting it wrong is your eyes; nothing in the
-build looks at it.
+to swap, and v0.4.1's platforms band went in second and flipped **all ten**
+below it. The check that would catch getting it wrong is your eyes; nothing in
+the build looks at it — so verify it by pairing the two greps:
+
+```sh
+paste <(grep -o 'class="band tint"\|class="band"' templates/index.html) \
+      <(grep -o '<p class="eyebrow">[^<]*' templates/index.html | sed 's/.*>//')
+```
+
+There are **twelve** bands, in this order, starting tinted and alternating:
+Install, The platforms, The build, The language, The capability, The extension,
+The reflection, The machine, The library, The guarantee, The name, Provenance.
+
+⚠️ **The nav holds six links and only two of them are bands** — Install and
+Tour. So the reflection band and the platforms band are reachable by anchor
+(`/#reflection`, `/#platforms`) and from the prose around them, but not from the
+bar; the reflection band took a direct question to find. Adding a link is two
+lines in `templates/masthead.html`, and the bar is already tight at phone
+width.
 
 ⚠️ **`extension` is not a keyword, and the home page's code block leaves it
 uncolored on purpose.** `Scanner.a24` says so in as many words: `unit`, `test`,
@@ -467,6 +528,19 @@ Beyond the language reference, what bites when writing the generator:
 
 - Semicolons **terminate**; the one before `end` is required.
 - `Exit`, not `return`. Arguments are comma-separated and individually typed.
+- ⚠️ **OPERANDS EVALUATE LEFT TO RIGHT, and compiled C did not until v0.4.1.**
+  The back end emitted an operation's operands as a function's arguments and C
+  leaves that order unspecified, so clang went left to right and gcc went right
+  to left: an expression with two side effects in it answered differently
+  depending on which C compiler had built `algc`. The interpreter and the
+  machine always went left to right, so the language does, and every operand
+  but the last now goes through a comma expression. `conformance/0076`, `0175`
+  and `0222`. Nothing in `gen/` has two side effects in one expression, so
+  nothing here needed migrating — but it is the one v0.4.1 change that can move
+  a *working* program's answer.
+- ⚠️ **`GetDir` separates with `/` on EVERY host as of v0.4.1**, Windows
+  included, so it answers `C:/work/here`. `GetDir () + '/' + Name` therefore
+  builds one path in one spelling; `[RT-026]` says so now.
 - `Length` and `IsEmpty` are properties on collections, but `Length(s)` is a
   builtin call on a String.
 - String indices are **0-based**. `Pos` returns `-1` when not found.
@@ -559,6 +633,18 @@ Beyond the language reference, what bites when writing the generator:
   followed by re-`Add` moves the element to the **end**. `ALGOL-24.md` §5 claims
   order is unspecified and is wrong — §7 is correct.
 - `uses` is not transitive; every file declares its own dependencies.
+- ⚠️ **A SHIM is searched in the working directory as of v0.4.1, LAST rather
+  than second** — `[FUN-017]`. A unit has always been found there `[MOD-002]`
+  and its `.so` was not, so a library developed in place resolved its `uses`
+  and failed its first foreign call. Last of the places tried rather than
+  second is deliberate: second would change which file an existing program
+  opens, last can only turn a failure into a success. ⚠️ **And `[FUN-014]` is
+  now the one rule in the specification that can be satisfied or not by how a
+  *correct* program is BUILT** — a symbol compiled into the program is
+  reachable by name only if the link exported it (`-rdynamic` on ELF,
+  `--export-all-symbols` on PE, nothing on Mach-O). There is no runtime answer:
+  `dlopen(NULL, RTLD_GLOBAL)` succeeds and `dlsym` still misses. Neither
+  touches this site, whose generator calls into no C.
 - ⚠️ **A quoted `uses` IS A PATH** — `[MOD-001]`. A bare identifier names a
   file of that name with `.a24` appended; a quoted string is a path, resolved
   **beside the importing file first**, then the working directory, then an
@@ -651,9 +737,19 @@ it — a count is a hostage to the next release.
 
 ⚠️ **`pre-1.0` is off the page, and *alpha* is spent.** Both meant one thing:
 a library written in Algol-24 rather than bolted into the runtime. It shipped as
-`algol24-library` v0.1.0, so the hero reads `v0.2.7 · library v0.1.0 · on
+`algol24-library` v0.1.0, so the hero reads `v0.4.1 · library v0.3.1 · on
 Homebrew` and the library band says in as many words that this is what alpha
 meant. Do not reintroduce a hedge for something that has arrived.
+
+⚠️ **THREE PLATFORMS IS NOW A CLAIM ABOUT RUNS, and before v0.4.1 the page was
+over-claiming.** The install band said *two formulae, three platforms* while the
+Linux build of the machine did not finish at all and Windows mangled every
+non-ASCII path handed to the runtime — neither of which any gate here could see,
+because the corpus asks on **one platform at a time**. v0.4.1 and the library's
+0.3.0/0.3.1 closed both, and `#platforms` is the band that says what a second
+host actually asked. So the claim stands, and it stands on sessions on real
+machines rather than on the harnesses: do not strengthen it into *supported*,
+and do not quote a platform matrix the project does not keep.
 
 Do not call it a toy language. State the engineering plainly and without
 adjectives, and do not manufacture an adoption story it does not have yet.

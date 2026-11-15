@@ -86,7 +86,7 @@ text for the Reference and Opcodes pages. One pinned commit, so the
 documentation on the site cannot drift from the compiler that generated it.
 
 ⚠️ **There are TWO submodules now, pinned to two different releases.**
-`vendor/algol24-library` is at **v0.3.1** where the compiler is at **v0.4.1**,
+`vendor/algol24-library` is at **v0.3.1** where the compiler is at **v0.4.2**,
 and that is not drift: the library is a *user* of the language rather than part
 of it, with its own repository and its own releases. Its `REFERENCE.md` is the
 source of the Library page, on the same terms — the page describes a library
@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.4.1` and the library's `v0.3.1`. An earlier pin, `01b2778`, was rewritten
+`v0.4.2` and the library's `v0.3.1`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -153,6 +153,16 @@ Three more things that are only visible by reading several files at once:
   `--ffi` switch, a foreign call being a feature of the language — and the
   local build deliberately needs nothing but a C compiler. Run it by hand on a
   Mac, where the SDK has libffi:
+
+  ⚠️ **That `algvm --test` is rarer than it looks: v0.4.2 found it was running
+  nowhere upstream.** The compiler repository's `./test.sh vm/Vm.a24` runs the
+  machine's own tests *under the interpreter*, and `vm/conform.sh` runs a corpus
+  with no test block in it — so a crash in the machine's own emitter sat there
+  for at least three releases. This step has been running a test block through
+  the machine the whole time and did not trip it, because the fault wants a
+  collection literal whose **last** element calls something and nothing in
+  `gen/` writes one. Worth knowing which of the two it is next time: running a
+  processor is not the same as running it over the shape that breaks it.
 
   ```sh
   export ALG_TEXT_CHECK=1
@@ -286,7 +296,7 @@ drift from the page a reader is looking at.
 ⚠️ **EVERYTHING ELSE ON THE PAGE IS A LITERAL, and this is the whole list.**
 Re-measure every one of them on a bump, each from the harness that owns it:
 
-| figure | at v0.4.1 | from |
+| figure | at v0.4.2 | from |
 | --- | --- | --- |
 | unit tests | 247 | `./test.sh` in the compiler repo |
 | cases in the corpus | 286 | `./conform.sh` — *the language: N passed* |
@@ -412,22 +422,26 @@ the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
 
 **There are three processors now, and the generator agrees with itself under
-all of them.** Measured on this machine at v0.4.1, building all four pages —
+all of them.** Measured on this machine at v0.4.2, building all four pages —
 time, and peak resident memory against the same run under v0.2.5, before text
 became collectable:
 
 | | time | peak RSS | RSS at v0.2.5 |
 | --- | --- | --- | --- |
-| compiled to C | **0.18s** | **36 MB** | 84 MB |
-| bytecode, `algvm gen/Main.a24` | **4.26s** | **62 MB** | 321 MB |
-| bytecode, `--algol-loop` | **6.93s** | | |
-| tree-walking, `algc gen/Main.a24` | **47.5s** | **540 MB** | 1302 MB |
+| compiled to C | **0.19s** | **37 MB** | 84 MB |
+| bytecode, `algvm gen/Main.a24` | **4.41s** | **62 MB** | 321 MB |
+| bytecode, `--algol-loop` | **7.18s** | | |
+| tree-walking, `algc gen/Main.a24` | **48.7s** | **355–565 MB** | 1302 MB |
 
 ⚠️ **Nothing has regressed across these bumps, and the input is why** — it grew
 with the releases, from 27,875 lines of Markdown at v0.2.7 to 28,940 at v0.4.0
-and **30,321** now, v0.4.1 having given every opcode entry a worked example.
-Check the input size before chasing a time: v0.4.1 is +4.8% of input for +2.7%
-of interpreted time and +3.8% of its peak. Check it with
+to 30,321 at v0.4.1, which gave every opcode entry a worked example, and
+**30,339** now. Check the input size before chasing a time: v0.4.1 was +4.8% of
+input for +2.7% of interpreted time and +3.8% of its peak. ⚠️ **v0.4.2 added
+eighteen lines and every time above still moved**, by 3–6%, which is the whole
+argument for the rule below: at +0.06% of input there is nothing for a real
+regression to be made of, and v0.4.2's one performance-relevant change is
+measured upstream at nothing. The movement is the session. Check it with
 `wc -l vendor/algol24/spec/ALGOL-24.md vendor/algol24/vm/REFERENCE.md
 vendor/algol24-library/REFERENCE.md`.
 
@@ -438,6 +452,14 @@ the compiled figure looked like an 88% regression — until v0.2.3's and v0.2.4'
 own binaries were rebuilt and run against the same documents and answered
 **0.15s each**. Three binaries agreeing means nothing regressed; the earlier
 session's machine was simply faster.
+
+⚠️ **The tree-walker's peak RSS is not reproducible, and the single figure this
+table used to carry was a fiction.** Five runs of the same binary over the same
+documents in one sitting answered 539, 356, 443, 355 and 539 MB — a factor of
+1.5 — while the time held inside 48.6–49.4s. So it is a range now. The other
+two are steady to the megabyte (37, and 62 against 61.7–62.2), and the machine's
+is the only one the page quotes; nothing here depended on the interpreter's.
+Do not read a movement inside that band as anything.
 
 Two movements since are real, and each is a release doing what it said. v0.2.4's
 collector for the tree-walker cost it 18% on a workload that allocates this hard
@@ -454,8 +476,8 @@ falls.
 
 Byte-identical output from the compiled back end and the machine, and the tests
 pass under `algvm --test` as well. Worth re-running on a pin bump, because this
-is a far better exercise of a processor than any single corpus case: 2,250 lines
-of Algol-24 reading 27,000 lines of Markdown. `--collect 100` — collecting every
+is a far better exercise of a processor than any single corpus case: 2,374 lines
+of Algol-24 reading 30,000 lines of Markdown. `--collect 100` — collecting every
 hundred instructions — also produces identical output, which is the collector
 check worth having.
 
@@ -528,6 +550,34 @@ Beyond the language reference, what bites when writing the generator:
 
 - Semicolons **terminate**; the one before `end` is required.
 - `Exit`, not `return`. Arguments are comma-separated and individually typed.
+- ⚠️ **A COLLECTION LITERAL WHOSE LAST ELEMENT CALLS SOMETHING WAS UNSAFE
+  UNTIL v0.4.2**, in every compiled Algol-24 program — `['head', N, Spin ()]`,
+  a List and a Map alike. The literal is emitted as a chain of calls and every
+  element but the last is evaluated into a held temporary; the last is evaluated
+  *while the collection already exists* and rooted nowhere, so a call there
+  reaches a safe point, the sweep takes the collection, and the append writes
+  into a released object. The symptom is a segfault with nothing printed, or the
+  block handed to another owner and the program quietly reading somebody else's
+  values. Nothing in `gen/` writes that shape, so nothing here was exposed —
+  but this is the reason to be on v0.4.2 rather than v0.4.1, and it is a wrong
+  answer rather than a slowdown, with no diagnostic before it.
+  ⚠️ **`--collect` is the GUEST machine's interval and will not reproduce this.**
+  `algvm` is itself a compiled Algol-24 program, so its own safe points answer
+  to `ALG_COLLECT_EVERY`; upstream ruled the collector out because `--collect 0`
+  crashed identically, and `ALG_POISON=1` named the fault on the first run.
+  Reach for `ALG_COLLECT_EVERY` and `ALG_POISON` when the suspect is the
+  collector of the processor you are *running*, not of the program it runs.
+- ⚠️ **`--test` EVALUATES THE DECLARATIONS AND NOT THE STATEMENTS BETWEEN THEM**
+  — `[TST-003]`, said plainly there as of v0.4.2, and all three processors
+  agree. So a declaration whose initializer depends on a statement above it
+  takes a value no run of the program can produce: a list filled by four `Add`
+  statements is empty under `--test`, and the declaration below it divides by
+  its length. Neither half of the rule can go — a test body reaches the
+  declarations around it, and running the statements would run the program.
+  Make each declaration whole on its own, one literal rather than a declaration
+  and the statements that finish it. v0.4.2 also gives `algc --test` a file and
+  line on an uncaught error, which it had been dropping where every other mode
+  reports it.
 - ⚠️ **OPERANDS EVALUATE LEFT TO RIGHT, and compiled C did not until v0.4.1.**
   The back end emitted an operation's operands as a function's arguments and C
   leaves that order unspecified, so clang went left to right and gcc went right
@@ -737,7 +787,7 @@ it — a count is a hostage to the next release.
 
 ⚠️ **`pre-1.0` is off the page, and *alpha* is spent.** Both meant one thing:
 a library written in Algol-24 rather than bolted into the runtime. It shipped as
-`algol24-library` v0.1.0, so the hero reads `v0.4.1 · library v0.3.1 · on
+`algol24-library` v0.1.0, so the hero reads `v0.4.2 · library v0.3.1 · on
 Homebrew` and the library band says in as many words that this is what alpha
 meant. Do not reintroduce a hedge for something that has arrived.
 

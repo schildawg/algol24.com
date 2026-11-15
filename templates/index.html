@@ -429,15 +429,15 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
       <p>This page is the evidence, and the check runs on every push. The generator
          that builds it is 2,374 lines of Algol-24 reading 30,000 lines of Markdown; run
          it under each processor in turn and the bytes that come out do not move.</p>
-<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.18s</span>
+<pre>$ ./build.sh                    <span class="com"># the compiled generator, 0.19s</span>
 $ mv site site-cc &amp;&amp; mkdir site
-$ algvm gen/Main.a24            <span class="com"># the machine, 4.26s</span>
+$ algvm gen/Main.a24            <span class="com"># the machine, 4.41s</span>
 $ diff -r site-cc site          <span class="com"># and it prints nothing</span></pre>
       <p>It also hosts the compiler: run <code>algc</code> <em>on</em> the machine and
          ask it for C, and the C is byte-identical to what a native <code>algc</code>
          emits — the whole front end and the whole back end, running as bytecode,
          agreeing to the byte.</p>
-      <p>The tree-walking interpreter is the slow one — 47.5s for the same four pages,
+      <p>The tree-walking interpreter is the slow one — 48.7s for the same four pages,
          having gained a collector of its own in v0.2.4 — and it agrees to the byte as
          well. A disagreement would be a bug in whichever processor is the odd one out,
          and that is most of what building a third one was for.</p>
@@ -450,7 +450,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          freed, so every <code>Str</code> and every <code>+</code> was held for the life
          of the process.</p>
       <p>Building this site is the measurement. Peak memory fell from <strong>84 MB to
-         36 MB</strong> compiled and from <strong>321 MB to 62 MB</strong> on the machine,
+         37 MB</strong> compiled and from <strong>321 MB to 62 MB</strong> on the machine,
          for about 15% more time on the machine and none measurable anywhere else. It is
          easy to misremember any of this as a feature of the machine, and it is not.</p>
       <p>A runtime error now says where it happened, file and line, under the interpreter

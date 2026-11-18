@@ -144,7 +144,26 @@ Three more things that are only visible by reading several files at once:
   call it.** The mkdir, the generate, the asset copy and the placeholder check
   all exist twice. A change to the build has to be made in both, or CI publishes
   something other than what you tested.
-- ⚠️ **CI has a step `build.sh` does not: *Agree with the other two
+- ⚠️ **CI has TWO steps `build.sh` does not**, and they are deliberately
+  separate. *Agree with the other two processors* compares the machine and the
+  tree-walker against the compiled site; *Run the site from a bytecode image*
+  compares the machine against **itself**, loading bytecode from a file rather
+  than compiling. A fourth path and not a fourth processor, which is why it did
+  not go inside the first step — that step's name was a promise it did not keep
+  once already, and widening it to cover an image would repeat the mistake.
+  Both are CI-only for one reason: they want `algvm`, which wants `libffi`.
+  ⚠️ **What the image step guards is STALENESS**, which the format cannot guard
+  itself: an image carries the release that wrote it, so another *build* is
+  refused by name, but nothing checks that an image is newer than its source.
+  Seen to fail before being trusted — emit an image, change a page constant,
+  rebuild, and the `diff -r` reports the status line and exits 1. It also emits
+  a **test** image and runs the 124 tests from it, because `--test` changes what
+  gets compiled and so needs a file of its own.
+  ⚠️ **Nothing published comes from an image.** The artifact is still the
+  compiled site and `build.sh` is untouched; the step only asks whether the
+  machine answers the same from a file as from source. About four seconds,
+  `algvm` having been built by the step above.
+- ⚠️ **The first of those two is *Agree with the other two
   processors*.** It builds `algvm`, runs the 124 tests on it, then regenerates
   the site with the machine **and again with the tree-walking interpreter**,
   and **`diff -r`s each against the compiled site**. Either disagreeing about
@@ -171,6 +190,17 @@ Three more things that are only visible by reading several files at once:
   diff -r site-cc site
   rm -rf site && mkdir site && vendor/algol24/bootstrap/algc gen/Main.a24
   diff -r site-cc site && rm -rf site && mv site-cc site
+  ```
+
+  And the image step, which wants the same compiled baseline:
+
+  ```sh
+  vendor/algol24/vm/algvm --emit gen/Main.a24 --out=gen.a24b
+  mv site site-cc && mkdir site && vendor/algol24/vm/algvm gen.a24b
+  diff -r site-cc site
+  vendor/algol24/vm/algvm --emit --test gen/Main.a24 --out=gen-test.a24b
+  vendor/algol24/vm/algvm --test gen-test.a24b
+  rm -rf site gen.a24b gen-test.a24b && mv site-cc site
   ```
 
   ⚠️ **It checked only the machine until v0.2.7, so its name was a promise it

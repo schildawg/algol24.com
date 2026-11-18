@@ -66,7 +66,7 @@ jobs:
       - name: Agree with the other two processors
         # ⚠️ THE POINT OF THIS STEP IS THAT IT CAN FAIL. The language has three
         # processors and all three must agree on every program; this generator
-        # is 2,250 lines reading 27,000 lines of Markdown, which exercises one
+        # is 2,374 lines reading 30,000 lines of Markdown, which exercises one
         # far harder than any single conformance case. If either of the other
         # two disagrees with the compiled back end about one byte of the
         # published site, one of them is wrong and this job should go red
@@ -129,6 +129,56 @@ jobs:
           fi
 
           rm -rf site
+          mv site-cc site
+
+      - name: Run the site from a bytecode image
+        # ⚠️ A FOURTH PATH RATHER THAN A FOURTH PROCESSOR, which is why this is
+        # its own step. v0.5.0 lets the machine write its bytecode to a file and
+        # load it back instead of compiling -- so there are now two ways to
+        # reach the machine, and only one of them was checked above. The step
+        # before this one is named for the other two PROCESSORS and keeps that
+        # name: its own name was a promise it did not keep once already, when it
+        # checked the machine alone and D-3 walked through the gap.
+        #
+        # ⚠️ WHAT THIS GUARDS IS STALENESS, and the format cannot guard it
+        # itself. An image carries the release that wrote it, so another BUILD
+        # is refused by name -- but nothing checks that an image is newer than
+        # the source it came from, the language having no way to ask a file its
+        # age. Seen to fail: emitting an image, then changing a page constant
+        # and rebuilding, makes this diff report the status line and exit 1.
+        # That is the whole failure mode, and it is the one a build step can
+        # actually catch.
+        #
+        # Nothing published comes from an image. The artifact is still the
+        # COMPILED site, which every other step has already checked; this only
+        # asks whether the machine answers the same from a file as from source.
+        # It costs about four seconds, algvm having been built above.
+        env:
+          ALG_TEXT_CHECK: '1'
+        run: |
+          vendor/algol24/vm/algvm --emit gen/Main.a24 --out=gen.a24b
+
+          # Same move-aside as the step above, and for the same reason: the
+          # generator writes to site/ and nowhere else.
+          mv site site-cc
+          mkdir -p site
+          vendor/algol24/vm/algvm gen.a24b
+
+          if ! diff -r site-cc site; then
+            echo "::error::the machine disagrees with itself about the site when it loads bytecode from a file rather than compiling it"
+            exit 1
+          fi
+
+          # ⚠️ A TEST RUN IS A SECOND IMAGE and cannot be the same one: --test
+          # changes what gets COMPILED, leaving a unit's bare statements out and
+          # putting its test bodies in. Worth checking because upstream found
+          # that nothing was running `algvm --test` at all -- a crash in the
+          # machine's own emitter sat for three releases -- and this is the
+          # cheaper way to run it.
+          vendor/algol24/vm/algvm --emit --test gen/Main.a24 --out=gen-test.a24b
+          vendor/algol24/vm/algvm --test gen-test.a24b
+
+          rm -rf site gen.a24b gen-test.a24b
           mv site-cc site
 
       - name: Add static assets

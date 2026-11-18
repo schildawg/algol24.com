@@ -127,6 +127,10 @@ $ algvm --version
 <pre>$ brew install algol24
 $ algc --version
 <span class="out">algc {{RELEASE}}</span></pre>
+      <p>Both formulae carry the library as of v0.5.0, pinned to the same release, so
+         either one alone is a working setup. Before it this second one installed a
+         language with nothing to write programs against: <code>uses graph;</code>
+         resolved nowhere, the library having been bundled only with the machine.</p>
       <p>Bottled for <code>arm64_sequoia</code>, <code>arm64_tahoe</code> and
          <code>x86_64_linux</code>. Anywhere else Homebrew builds from source, which
          needs a C compiler and takes seconds. The specification is installed beside
@@ -308,6 +312,16 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          <code>not</code> are untouched: they test truthiness and short-circuit, and
          writing one where a bitwise operator was meant now raises a
          <code>[WARN]</code>.</p>
+      <p>A <code>Buffer</code> is the language's record of bytes — a documented byte
+         order, <code>PutInt</code> and <code>GetInt</code>, <code>PutDouble</code>,
+         byte subscripting — and until v0.5.0 it could not reach a file. A
+         <code>TextFile</code> reads and writes <em>lines of text</em>, and a buffer
+         holding a zero byte has no text to write, so bytes could be held by this
+         language and never stored: an image, a record, a sound, a sprite sheet each
+         needed C, and two projects had already written that C. <code>Load</code> and
+         <code>Save</code> move the whole file either way, because a buffer holds all
+         of one or none of it, and <code>GetText</code> cuts a span of those bytes out
+         as a String — the inverse that appending never had.</p>
     </div>
   </div>
 
@@ -414,8 +428,8 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
          them, so the book reads alongside the source.</p>
       <div class="facts">
         <div class="fact"><b>{{OPCODES}}</b><span>opcodes, one reference entry each</span></div>
-        <div class="fact"><b>140</b><span>tests of the machine itself</span></div>
-        <div class="fact"><b>284</b><span>cases it answers like the others</span></div>
+        <div class="fact"><b>149</b><span>tests of the machine itself</span></div>
+        <div class="fact"><b>285</b><span>cases it answers like the others</span></div>
       </div>
       <p>Each of those entries carries a <em>worked example</em> as of v0.4.1 — a whole
          program, and the window of <code>algvm --list</code> where that instruction
@@ -433,11 +447,47 @@ $ cc -std=c11 -O2 -o hello build/*.c</pre>
 $ mv site site-cc &amp;&amp; mkdir site
 $ algvm gen/Main.a24            <span class="com"># the machine, 4.41s</span>
 $ diff -r site-cc site          <span class="com"># and it prints nothing</span></pre>
+      <p>Starting it meant compiling first, every time, and as of v0.5.0 it does not
+         have to. <code>algvm --emit</code> writes the bytecode out as a file and
+         <code>algvm</code> runs that instead of a source tree:</p>
+<pre>$ algvm --emit gen/Main.a24 --out=gen.a24b
+$ algvm gen.a24b                <span class="com"># the same four pages, 4.15s</span></pre>
+      <p>Which is a quarter of a second off 4.41s, and saying so is more use than
+         quoting the headline. The release measures a game whose start-up falls from
+         3.4s to 0.02, because almost all of it was compiling; this generator is the
+         opposite case. Compiling it costs 248ms of the 4.41 — 7 to scan, 219 to parse,
+         5 to resolve, 8 to check, 9 to emit — so an image saves those 248ms and
+         nothing else, the remaining four seconds being the machine actually running.
+         The feature is worth exactly the ratio between those two numbers, and here
+         that ratio is 6%.</p>
+      <p>A file says which kind it is by its first four bytes rather than by its name,
+         so <code>.a24b</code> is a convention and an image called <code>.txt</code>
+         runs. An image is a build artifact and not a second seed: it carries the
+         release that wrote it, and any other build refuses it rather than running
+         bytes it would read as different instructions.</p>
+<pre>$ algvm stale.a24b
+<span class="out">This image was written by algvm 0.9.9 and this is algvm 0.5.0.  Re-emit it.</span></pre>
+      <p>That refusal is what makes an image safe to hand to somebody rather than a
+         trap to document. An opcode's <em>number</em> has never been part of this
+         language's interface — the machine renumbers them freely, and the advice for
+         adding one is to append it and renumber nothing <em>because</em> the number
+         promises nothing — so the same bytes mean different instructions in two
+         builds. What the format cannot close is staleness: nothing checks that an
+         image is newer than the source it came from, the language having no way to
+         ask a file its age, so a stale image runs stale code until it is re-emitted.</p>
+      <p>A test run needs its own image, because <code>--test</code> changes what gets
+         compiled rather than what gets run — a unit's bare statements are left out and
+         its test bodies put in, so one file cannot serve both. This generator's own
+         124 tests run from one of each and report identically, and asking either
+         image for the other mode is refused by name instead of answered wrongly. Its own gate compares the two paths over the
+         whole corpus: 222 programs answer identically from a file and from their
+         source, and the 63 the emitter refuses are checked to refuse the same way
+         either way.</p>
       <p>It also hosts the compiler: run <code>algc</code> <em>on</em> the machine and
          ask it for C, and the C is byte-identical to what a native <code>algc</code>
          emits — the whole front end and the whole back end, running as bytecode,
          agreeing to the byte.</p>
-      <p>The tree-walking interpreter is the slow one — 48.7s for the same four pages,
+      <p>The tree-walking interpreter is the slow one — 48.9s for the same four pages,
          having gained a collector of its own in v0.2.4 — and it agrees to the byte as
          well. A disagreement would be a bug in whichever processor is the odd one out,
          and that is most of what building a third one was for.</p>
@@ -450,7 +500,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          freed, so every <code>Str</code> and every <code>+</code> was held for the life
          of the process.</p>
       <p>Building this site is the measurement. Peak memory fell from <strong>84 MB to
-         37 MB</strong> compiled and from <strong>321 MB to 62 MB</strong> on the machine,
+         38 MB</strong> compiled and from <strong>321 MB to 64 MB</strong> on the machine,
          for about 15% more time on the machine and none measurable anywhere else. It is
          easy to misremember any of this as a feature of the machine, and it is not.</p>
       <p>A runtime error now says where it happened, file and line, under the interpreter
@@ -541,9 +591,9 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
       <div class="facts">
         <div class="fact"><b>{{RULES}}</b><span>rules, each claimed by a case</span></div>
         <div class="fact"><b>247</b><span>unit tests in Algol-24</span></div>
-        <div class="fact"><b>286</b><span>cases in the corpus</span></div>
+        <div class="fact"><b>287</b><span>cases in the corpus</span></div>
       </div>
-      <p>Every case runs interpreted and compiled, and every run must be green; the 284
+      <p>Every case runs interpreted and compiled, and every run must be green; the 285
          conformance and refusal cases run on the machine as well. A case the interpreter
          gets right and the compiled program gets wrong is a gap, and a gap is a failure
          rather than a note. A defect's test is stranger still: it records the wrong
@@ -556,7 +606,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          turned out to be one bug, and its worst shape read a program-level variable as an
          imported enumeration's member, so every assignment to it was discarded in
          silence.</p>
-      <p>It has grown by three since, and this site found one of them: a line of text
+      <p>It has grown by six since, and this site found one of them: a line of text
          coming back two characters short, because a cache remembering how many
          <em>characters</em> a string has was keyed on <em>where its bytes were</em>.
          Safe while text came from an allocator that never freed; wrong the moment a
@@ -570,8 +620,16 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          in two programs that needed no edit: a filter that could never filter, and a
          window that remembered its zoom and forgot where it was. The four-character key
          worked and the one-character keys did not, which is why nobody noticed.</p>
+      <p>The three most recent are a different shape again, each found by running a
+         processor in a mode no gate here was running. <code>algvm --test</code>
+         crashed compiling a test block where <code>algc</code> tested the same file
+         clean; <code>algc --test</code> dropped the file and line every other mode
+         reports; and the third was answered in the specification rather than in code
+         — a test run evaluates a program's declarations and skips the statements
+         between them, so a declaration can take a value no run of that program could
+         produce.</p>
 <pre>$ ./defects.sh
-<span class="out">0 reproducing, 19 fixed, of 19 checked</span></pre>
+<span class="out">0 reproducing, 22 fixed, of 22 checked</span></pre>
       <p>That harness is new, and it is the only one here written to <em>fail</em>: each
          report is reduced to the smallest program that shows it and run under whichever
          processors disagree, so the sweep goes green only when every one is fixed and
@@ -582,7 +640,7 @@ $ diff -r site-cc site          <span class="com"># and it prints nothing</span>
          timestamps, no pointer values may reach the emitted text. A compiler can be
          entirely correct and still fail it, and nothing else would notice.</p>
 <pre>$ ./fixedpoint.sh
-<span class="out">generation 3 is identical to generation 2</span></pre>
+<span class="out">generation 2 is identical to generation 1</span></pre>
     </div>
   </div>
 

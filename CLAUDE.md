@@ -86,7 +86,7 @@ text for the Reference and Opcodes pages. One pinned commit, so the
 documentation on the site cannot drift from the compiler that generated it.
 
 ⚠️ **There are TWO submodules now, pinned to two different releases.**
-`vendor/algol24-library` is at **v0.3.1** where the compiler is at **v0.4.2**,
+`vendor/algol24-library` is at **v0.3.1** where the compiler is at **v0.5.0**,
 and that is not drift: the library is a *user* of the language rather than part
 of it, with its own repository and its own releases. Its `REFERENCE.md` is the
 source of the Library page, on the same terms — the page describes a library
@@ -107,7 +107,7 @@ release actually means for this site. `finished/PLAN-0.2.4.md` there carries
 the root cause of every defect that release closed.
 
 ⚠️ **Pin to a release tag, because a pin can vanish.** The submodules track
-`v0.4.2` and the library's `v0.3.1`. An earlier pin, `01b2778`, was rewritten
+`v0.5.0` and the library's `v0.3.1`. An earlier pin, `01b2778`, was rewritten
 out of the compiler repository's history, and from then on `actions/checkout` failed with
 `upload-pack: not our ref` before a single build step ran — a green local tree
 and a red CI, for a reason that has nothing to do with the site. A tag does not
@@ -193,6 +193,32 @@ Three more things that are only visible by reading several files at once:
   the processors disagreeing and is nothing of the kind. It cost two rounds in
   one sitting. `vm/build.sh` also defaults to `-std=c11`, so it gets `CFLAGS` from
   outside like the other three.
+- ⚠️ **THE MACHINE CAN RUN THIS GENERATOR FROM AN IMAGE AS OF v0.5.0, and it
+  is worth ONE QUARTER OF A SECOND here.** `algvm --emit gen/Main.a24
+  --out=gen.a24b` writes the bytecode and `algvm gen.a24b` runs it: 4.15s
+  against 4.41s, byte-identical output, verified under `ALG_TEXT_CHECK=1`
+  against the compiled site like the other two processors. ⚠️ **The release's
+  headline does not apply to this site and the page says so rather than
+  quoting it.** Upstream measures a game going from 3.4s to 0.02 because
+  almost all of its start-up was compiling; `algvm --time gen/Main.a24` reports
+  this generator at scan 7ms, **parse 219**, resolve 5, check 8, emit 9 — about
+  248ms of 4.41s, so an image saves 6% and the other four seconds are the
+  machine running. The feature is worth the ratio of those two numbers, and a
+  figure borrowed from someone else's program would have overstated it 50×.
+  - A file is an image by its **first four bytes** (`A24B`), not its name, so
+    `.a24b` is a convention and an image called `.txt` runs.
+  - An image is **refused by any other build**, and that is what makes it safe
+    to publish: an opcode's number is not interface, so the same bytes mean
+    different instructions across builds. Patching `0.5.0` to `0.9.9` in the
+    header (it sits at offset 12) answers *This image was written by algvm
+    0.9.9 and this is algvm 0.5.0.  Re-emit it.* and exits 2.
+  - ⚠️ **`--test` IS A SECOND IMAGE.** `--test` changes what gets compiled, so
+    `--emit --test` writes its own file; `gen/Main.a24`'s 124 tests run from
+    one, and asking either image for the other mode is refused by name.
+  - ⚠️ **Nothing checks an image is newer than its source**, the language
+    having no way to ask a file its age. Re-emit as a build step, never by
+    hand. Nothing here keeps one: `build.sh` is unchanged and the site is
+    still generated from source.
 - ⚠️ **`-std=gnu11`, never `-std=c11`, and both files say so.** The runtime
   calls `readlink("/proc/self/exe")` for the program's own path, and glibc's
   `unistd.h` declares `readlink` only when `__STRICT_ANSI__` is unset — which
@@ -288,7 +314,7 @@ wrong.** `RuleCount` in `Main.a24` counts `**[XXX-000]**` openers in the spec �
 but **000 is reserved in every namespace** for the format illustration in §1.3
 and is never a real rule, so the count was one too high from the start. Nothing
 disagreed until v0.1.3 shipped `spec/spec.sh`, which excludes it and is the
-authority. The two now agree at 303. **`OpcodeCount` is the second derived
+authority. The two now agree at 304. **`OpcodeCount` is the second derived
 figure** and was added for the same reason: three sources said 78, 80 and 81,
 and the entries in the document being rendered are the only count that cannot
 drift from the page a reader is looking at.
@@ -296,12 +322,14 @@ drift from the page a reader is looking at.
 ⚠️ **EVERYTHING ELSE ON THE PAGE IS A LITERAL, and this is the whole list.**
 Re-measure every one of them on a bump, each from the harness that owns it:
 
-| figure | at v0.4.2 | from |
+| figure | at v0.5.0 | from |
 | --- | --- | --- |
 | unit tests | 247 | `./test.sh` in the compiler repo |
-| cases in the corpus | 286 | `./conform.sh` — *the language: N passed* |
-| machine's own tests | 140 | `./test.sh vm/Vm.a24` |
-| cases on the machine | 284 | `./vm/conform.sh` — identical **plus** FFI-interpreter |
+| cases in the corpus | 287 | `./conform.sh` — *the language: N passed* |
+| machine's own tests | 149 | `./test.sh vm/Vm.a24` (140) **plus `Image.a24`'s own 9** |
+| cases on the machine | 285 | `./vm/conform.sh` — identical **plus** FFI-interpreter |
+| image gate | 222 and 63 | `./vm/image.sh` — identical to the compile, refused before emitting |
+| defects swept | 22 | `./defects.sh` — *N reproducing, N fixed, of N checked* |
 | library units | 11 | the Status table in the library's `CLAUDE.md` |
 | library tests | 888 | `./test.sh` there, the 11 unit lines summed |
 | reference examples | 121 | the same run's `reference:` line |
@@ -309,16 +337,57 @@ Re-measure every one of them on a bump, each from the harness that owns it:
 | Markdown lines read | 30,000 | the three source documents, `wc -l` |
 | the three timings and two RSS figures | see the table below | one sitting, never mixed |
 
+⚠️ **THE MACHINE'S TEST COUNT IS NOW A SUM TOO, and the old root cannot see the
+rest.** v0.5.0 put the image format in `vm/Image.a24`, which only `vm/run.a24`
+imports — so `./test.sh vm/Vm.a24` still answers **140** and misses that unit's
+own **9**. `./test.sh vm/Image.a24` answers 40, which is NOT 9: 31 of them are
+the shared imports already inside the 140, so the two roots cannot be added.
+The union is measured with a two-`uses` root, and it is 149:
+
+```sh
+printf 'uses Vm;\nuses Image;\n\nbegin\nend\n' > vm/both-roots.tmp.a24
+./test.sh vm/both-roots.tmp.a24     # All 149 tests passed.
+rm vm/both-roots.tmp.a24
+```
+
+⚠️ **AND `./test.sh vm/run.a24` CANNOT RUN AT ALL, which is why there is no one
+root to quote.** `run.a24:382` declares `var SourcePath := ParamStr (1);` and
+`run.a24:532` declares `var FromImage := IsAnImage (SourcePath);` — both
+*declarations*, so a test run evaluates them [TST-003], `ParamStr (1)` is empty
+under `--test`, and the run dies as `Load failed: cannot open ''.` at
+`vm/Image.a24:602` reporting **no tests**. That is exactly the trap v0.4.2 wrote
+into the specification, landing in the driver one release later. Reported
+upstream? **No.** The fix is theirs — make the declaration whole on its own —
+and nothing here depends on that root.
+
+⚠️ **`./defects.sh` HAS A PAGE LITERAL AND THIS TABLE USED TO OMIT IT.** The
+guarantee band quotes its summary line verbatim, and it read *19 fixed, of 19*
+until v0.4.2's three defects landed. One of the three is `SPECIFIED` rather than
+`FIXED` — a rule that needed saying rather than code that needed changing —
+which is why the band's prose names it separately.
+
+⚠️ **`./fixedpoint.sh`'S QUOTED LINE MOVES WITH THE STATE OF THE SEED, and it
+moved at v0.5.0.** The guarantee band quotes it verbatim and it read *generation
+3 is identical to generation 2* for several releases; at v0.5.0 the same script
+answers **generation 2 is identical to generation 1**, because `bootstrap/` is
+reseeded and generation 1 already emits what the seed holds. An unseeded change
+to the emitter is what needs a third generation — the script's own note says it
+*settles by generation 2* normally. So the band's prose must say what the check
+MEANS (it compiles itself, compiles itself again, and the two emissions must
+match) and the `<pre>` must carry whatever the script printed this sitting.
+Neither number is more correct; re-run it on every bump rather than reasoning
+about which generation it ought to name.
+
 ⚠️ **The library's 888 is a SUM and the harness does not print it.**
 `./test.sh` prints a line per file, including `harness` (0) and
 `harness-example` (78) — which are **not units** and are not in the Status
 table. Sum the eleven that are, or the figure comes out 958.
 
-⚠️ **The machine runs 284 of the 286, and the page says so precisely.** The
-corpus is `conformance/` (218) plus `refusals/` (66) plus `defects/` (2);
+⚠️ **The machine runs 285 of the 287, and the page says so precisely.** The
+corpus is `conformance/` (219) plus `refusals/` (66) plus `defects/` (2);
 `vm/conform.sh` walks the first two and not the third, so *every case under all
-three processors* was an over-claim. 284 is the machine's own figure, from its
-own harness, and both numbers move on a bump — it reports **281 identical to
+three processors* was an over-claim. 285 is the machine's own figure, from its
+own harness, and both numbers move on a bump — it reports **282 identical to
 the fixture plus 3 against an `--ffi` interpreter**, and the site's figure is
 that sum. ⚠️ **The total held at 286 across v0.4.1 by coincidence**: one
 `defects/` case was promoted to `conformance/0225`, so both directories moved
@@ -422,26 +491,29 @@ the back ends here. The guard that would catch a divergence is the
 prototype-to-site byte comparison, not the test run.
 
 **There are three processors now, and the generator agrees with itself under
-all of them.** Measured on this machine at v0.4.2, building all four pages —
+all of them.** Measured on this machine at v0.5.0, building all four pages —
 time, and peak resident memory against the same run under v0.2.5, before text
 became collectable:
 
 | | time | peak RSS | RSS at v0.2.5 |
 | --- | --- | --- | --- |
-| compiled to C | **0.19s** | **37 MB** | 84 MB |
-| bytecode, `algvm gen/Main.a24` | **4.41s** | **62 MB** | 321 MB |
-| bytecode, `--algol-loop` | **7.18s** | | |
-| tree-walking, `algc gen/Main.a24` | **48.7s** | **355–565 MB** | 1302 MB |
+| compiled to C | **0.19s** | **38 MB** | 84 MB |
+| bytecode, `algvm gen/Main.a24` | **4.41s** | **64 MB** | 321 MB |
+| bytecode, from an image | **4.15s** | | |
+| bytecode, `--algol-loop` | **7.23s** | | |
+| tree-walking, `algc gen/Main.a24` | **48.9s** | **355–572 MB** | 1302 MB |
 
 ⚠️ **Nothing has regressed across these bumps, and the input is why** — it grew
 with the releases, from 27,875 lines of Markdown at v0.2.7 to 28,940 at v0.4.0
-to 30,321 at v0.4.1, which gave every opcode entry a worked example, and
-**30,339** now. Check the input size before chasing a time: v0.4.1 was +4.8% of
-input for +2.7% of interpreted time and +3.8% of its peak. ⚠️ **v0.4.2 added
-eighteen lines and every time above still moved**, by 3–6%, which is the whole
-argument for the rule below: at +0.06% of input there is nothing for a real
-regression to be made of, and v0.4.2's one performance-relevant change is
-measured upstream at nothing. The movement is the session. Check it with
+to 30,321 at v0.4.1, which gave every opcode entry a worked example, to 30,339
+at v0.4.2 and **30,495** now. Check the input size before chasing a time:
+v0.4.1 was +4.8% of input for +2.7% of interpreted time and +3.8% of its peak.
+⚠️ **v0.4.2 added eighteen lines and every time above still moved**, by 3–6%,
+which is the whole argument for the rule below: at +0.06% of input there is
+nothing for a real regression to be made of. v0.5.0 is +0.5% of input and the
+times barely moved at all — the machine read 4.41s both releases — while its
+peak went 62 MB to 64 and the compiled peak 37 to 38. Read those two as the
+session unless something repeats them. Check it with
 `wc -l vendor/algol24/spec/ALGOL-24.md vendor/algol24/vm/REFERENCE.md
 vendor/algol24-library/REFERENCE.md`.
 
@@ -469,7 +541,7 @@ the ~13% claimed) and buys the memory column above: a String used to come from
 an arena that never freed, so every `Str` and every `+` was permanent.
 
 `--algol-loop` turns off the hand-written C dispatch loop v0.2.5 introduced, so
-the pair above measures it: **1.63×** here, against the 1.51× that release
+the pair above measures it: **1.64×** here, against the 1.51× that release
 claims. Worth keeping as an independent check of someone else's headline figure
 — and note it moved with v0.2.6, the loop being where the new write barrier
 falls.
@@ -550,6 +622,22 @@ Beyond the language reference, what bites when writing the generator:
 
 - Semicolons **terminate**; the one before `end` is required.
 - `Exit`, not `return`. Arguments are comma-separated and individually typed.
+- ⚠️ **A `Buffer` REACHES A FILE AS OF v0.5.0, and before it bytes could be
+  held and never stored** — `[RT-036]`. `B.Load (Name)` makes the file's bytes
+  the buffer's and `B.Save (Name)` the reverse, **whole-file both ways**,
+  because a buffer holds all of a file or none of it: there is no position, no
+  record size and no partial read, and a program wanting those has `TextFile`
+  for text and the FFI for anything else. `B.GetText (At, Length)` cuts a span
+  out as a String and is the inverse `Append` never had — it answers a zero
+  byte where `Buffer.Text` refuses the whole buffer.
+  ⚠️ **There is no `PutText` and none is needed**: `Append` already takes a
+  String's bytes, and a fixed-width field is written by reserving the
+  characters and writing through them — `var At := Out.Length; Out.Append
+  ('....'); Out.PutInt (At, N);`. ⚠️ **`Append` takes a value's TEXT, not its
+  bytes**, so `Char (200)` appends the two bytes of its UTF-8 and one
+  arbitrary byte cannot be appended at all. The generator uses none of this —
+  it writes text through `gen/Template.a24` — so this is here for the page's
+  sake and for the next thing that needs bytes.
 - ⚠️ **A COLLECTION LITERAL WHOSE LAST ELEMENT CALLS SOMETHING WAS UNSAFE
   UNTIL v0.4.2**, in every compiled Algol-24 program — `['head', N, Spin ()]`,
   a List and a Map alike. The literal is emitted as a chain of calls and every
@@ -785,9 +873,17 @@ closed"*: it changes **only on measured demand from a project using it, and the
 measurement goes in the proposal**. Write the rule, not a count of exceptions to
 it — a count is a hostage to the next release.
 
+⚠️ **BOTH FORMULAE CARRY THE LIBRARY AS OF v0.5.0, which the install band now
+says.** Before it `brew install algol24` — the compiler — installed a language
+with nothing to write programs against: `uses graph;` resolved nowhere, because
+the library shipped only with `algol24-vm`. The two are pinned to the same
+release now and either alone is a working setup, so the band's *install it when
+you want C out of the language* is a reason rather than a caveat. Do not write
+that the compiler formula lacks the library.
+
 ⚠️ **`pre-1.0` is off the page, and *alpha* is spent.** Both meant one thing:
 a library written in Algol-24 rather than bolted into the runtime. It shipped as
-`algol24-library` v0.1.0, so the hero reads `v0.4.2 · library v0.3.1 · on
+`algol24-library` v0.1.0, so the hero reads `v0.5.0 · library v0.3.1 · on
 Homebrew` and the library band says in as many words that this is what alpha
 meant. Do not reintroduce a hedge for something that has arrived.
 
